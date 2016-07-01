@@ -210,3 +210,4 @@ class Paradigm2AFC(QtGui.QMainWindow):
         pass
 '''
 
+class SM2AFC():

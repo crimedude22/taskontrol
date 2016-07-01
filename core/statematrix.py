@@ -219,7 +219,18 @@ class StateMatrix(object):
             extraTimerInd = self.extraTimersNameToIndex[oneExtraTimer]
             self.extraTimersTriggers[extraTimerInd] = thisStateInd
         pass
-    
+
+    def add_probstate(self, name='', statetimer=VERYLONGTIME, transitions={},
+                  outputsOn=[], outputsOff=[], trigger=[], serialOut=0):
+        """
+        Add a state with probabilistic transitions, for example to choose different target conditions in a 2AFC task
+        These states are instant transitions (as they are not meant to be available to the animal) so they do not require a transition trigger
+        Instead, the format of the transition dict is {nextstate:probability} - or reversed from the usual states.
+        This is so that states with equal probabilities are still defined uniquely (no multiple vals in the dict)
+        """
+
+
+
     
     def add_extratimer(self, name='', duration=0):
         '''

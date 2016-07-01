@@ -16,7 +16,7 @@ Without jack, you can test with:
 speaker-test -r 41000 -t sine -f 8000
 
 And test pyo:
-import pyo
+import pyoprobabilistic state machine python
 import time
 s = pyo.Server(audio='jack').boot()
 s.start()

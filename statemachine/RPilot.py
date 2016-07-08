@@ -11,7 +11,10 @@ Sets up & coordinates the multiple threads needed to function as a standalone ta
 To Do (Initial, 6/22/16):
     -Build initialization method that does first setup to store location of host terminal, data, etc.
     -Build calibration method
-    -
+    -Build in threading/multiprocessing
+    -Sounds should be a) parameterized in the protocol file, and b) handled/defined in the sounds file
+        -So the mouse object is saved with the parameters for the protocol, then RPilot loads the task template w/ those
+        parameters so it is the child of RPilot, then the functions in the task template have access to RPilot methods.
 '''
 
 __version__ = '0.1'
@@ -19,26 +22,53 @@ __author__ = 'Jonny Saunders <jsaunder@uoregon.edu>'
 
 import os
 from taskontrol.settings import rpisettings as rpiset
+from taskontrol.core import mouse as Mouse
 import h5py
 import datetime
-
-
-# try: #...to get existing settings
-#     from taskontrol.settings import rpisettings as rpiset
-#     DATA_DIR = rigsettings.DATA_DIR
-# except ImportError:
-#     f = open('{}/rpisettings.py'.format(os.path.dirname(taskontrol.settings.__file__)),'w+')
-#     DATA_DIR = '/var/tmp/data'
-#     f.write('DATA_DIR = \'/var/tmp/data\'\n')
-
-
+import RPi.GPIO as GPIO
+import pyo
+import threading
 
 class RPilot:
     def __init__(self, firstrun=0):
         # Init all the hardware stuff, get the RPi ready for instructions
         # Remember! All the RPi should care about is the immediate future and the near past.
         # Let the terminal deal with stuff like total number of trials, etc.
-        self.ntrials =
+        self.licks  = rpiset.LICKS
+        self.valves = rpiset.VALVES
+        self.init_pins()
+        self.init_pyo()
+        # Synchronize system clock w/ correct time
+
+
+    def init_pins(self):
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(self.licks.values(), GPIO.IN, pull_up_down.GPIO.PUD_DOWN)
+        GPIO.setup(self.valves.values(), GPIO.OUT, initial=GPIO.LOW)
+
+    def pin_cb(self,pin):
+        # Should be as simple as self.protocol_advance(pin) or whatever to .next() the protocol, save returned data, etc.
+        pass
+
+    def init_pyo(self):
+        self.pyo_server = pyo.Server(audio='jack').boot()
+        self.pyoServer.start()
+
+    def cache_sounds(self):
+        # Cache sounds to memory with pyo.SndTable(path)
+        pass
+
+    def load_mouse(self, name):
+        self.subject = Mouse(name)
+
+    def load_protocol(self):
+        '''
+        Parameters for setting up the protocol should be in self.subject.protocol_params
+        Then we can do something like self.protocol = protocol_params.type(params)
+        Since the protocol will be a cyclic iterable, running should be as simple as protocol.next(), w/ grad. criter, etc.
+        '''
+        pass
+
 
     def run(self):
         #first setup a TCP/IP interrupt to listen for
@@ -62,45 +92,8 @@ class RPilot:
         #basically just want to save a .py file
         pass
 
-    def load_mouse(self, mouse):
-        # load mouse object from file, load their protocol
-        pass
 
 
-
-
-class Mouse:
-    """Mouse object for managing protocol, parameters, and data"""
-    # hdf5 structure is split into two groups, mouse info and trial data.
-
-    def __init__(self, name, new=0):
-        self.name = name
-        if new:
-            self.new_mouse(name)
-            return
-
-        self.h5f = h5py.File(rpiset.PI_DATA_DIR + self.name + '.hdf5', 'r+')
-
-
-
-    def new_mouse(self,name):
-        try:
-            self.h5f = h5py.File(rpiset.PI_DATA_DIR + self.name + '.hdf5', 'w-')
-        except:
-            print("Mouse already has a file.")
-            return
-
-        # Basic info about the mouse
-        self.startdate = datetime.today()
-
-        # Since the type of protocol will determine what we want to save, get it and its info first
-        numvars = None #will be the number variables we want to save
-
-        # Save info to hdf5
-        self.info = self.h5f.create_group("info")
-        self.data = self.h5f.create_group("data")
-        self.trial_records = self.data.create_dataset("trial_records",maxshape=(none,numvars))
-        self.info["startdate"] = self.startdate
 
 
 

@@ -29,7 +29,7 @@ PIN_MODE = "BOARD"
 #PIN_MODE = "BCM"
 
 # How are we hooked up?
-INPUTS = {
+LICKS = {
     'L' : 11,
     'C' : 13,
     'R' : 15
@@ -38,10 +38,10 @@ INPUT_LIST = [11,13,15]
 ## Note: this code assumes your inputs are Pull-down, that's hardcoded in the RPilot init
 
 #: Name for each output line.
-OUTPUTS = {
-    'LWater' : None,
-    'CWater' : None,
-    'RWater' : None
+VALVES = {
+    'L' : None,
+    'C' : None,
+    'R' : None
 }
 OUTPUT_LIST = [None]
 

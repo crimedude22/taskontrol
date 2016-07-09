@@ -51,8 +51,9 @@ class RPilot:
         pass
 
     def init_pyo(self):
-        self.pyo_server = pyo.Server(audio='jack').boot()
+        self.pyo_server = pyo.Server(audio='jack',sr=rpiset.SAMPLING_RATE,nchnls=rpiset.NUM_CHANNELS).boot()
         self.pyoServer.start()
+
 
     def cache_sounds(self):
         # Cache sounds to memory with pyo.SndTable(path)

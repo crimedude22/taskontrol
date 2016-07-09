@@ -20,6 +20,9 @@ PI_NUM = 1
 
 # Where is the speaker calibration file?
 SPEAKER_CALIBRATION = None
+SPEAKER_AMPLITUDE = 0.1
+SAMPLING_RATE = 92000
+NUM_CHANNELS = 2
 
 # Where should we store data?
 PI_DATA_DIR = '/var/tmp/data/'

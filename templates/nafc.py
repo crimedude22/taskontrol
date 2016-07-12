@@ -59,7 +59,9 @@ class Nafc:
 
         # Checking that input
 
-
+    ##################################################################################
+    # Stage Functions
+    ##################################################################################
     def request(self):
 
         if random.random() > .5:
@@ -70,6 +72,8 @@ class Nafc:
             self.target_sound = random.choice(self.sounds['R'])
 
         data = {'target':self.target,'target_sound':self.target_sound,'timestamp':datetime.datetime.now().isoformat()}
+        # triggers = {'C':}
+        timer = 'inf'
         return data
 
     def discrim(self):
@@ -91,6 +95,11 @@ class Nafc:
         return data
         # Also calc ongoing vals. like bias.
 
+    def reset_stages(self):
+        """
+        Remake stages to reset cycle
+        """
+        self.stages = itertools.cycle([self.request, self.discrim, self.reinforcement])
 
     def give_sound_player(self,sound_player):
         # Be given the handle of the sound player by RPilot.
@@ -119,6 +128,17 @@ FREQ_DISCRIM = {
     'bias_mode':1
 }
 
+FREQ_DISCRIM_TEST = {
+    'sounds':{
+        'L': [{'type':'tone','frequency':500, 'duration':500,'amplitude':.1},
+             {'type':'tone','frequency':700, 'duration':500,'amplitude':.1}],
+        'R': {'type':'tone','frequency':2000,'duration':500,'amplitude':.1}
+    },
+    'reward':[50,60,70],
+    'punish':2000,
+    'pct_correction':0.5,
+    'bias_mode':1
+}
 
 
 

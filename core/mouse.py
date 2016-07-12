@@ -31,17 +31,18 @@ class Mouse:
         self.__dict__.update(dict(self.h5f["info"].attrs.items()))
 
         # Load Task if Exists
+        self.task = None
         if self.h5data.keys():
             last_assigned_task = self.h5data.keys()[-1]
             self.h5trial_records = self.h5data[last_assigned_task]
             self.task_type = self.h5trial_records.attrs['task_type']
 
-            # Params can be described with a string for a template parameter set or a dict of params.
-            if 'template_params' in self.h5trial_records.attrs.keys():
-                self.task_params = self.h5trial_records.attrs['template_params']
-            else:
-                param_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if not key == 'task_type')
-                self.task_params = param_dict
+            # Params can be described with a string for a template parameter set, load it if it was
+            if 'param_template' in self.h5trial_records.attrs.keys():
+                self.param_template = self.h5trial_records.attrs['template_params']
+
+            param_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if not key == 'task_type')
+            self.task_params = expand_dict(param_dict)
 
             self.assign_protocol(self.task_type,self.task_params)
 
@@ -101,16 +102,70 @@ class Mouse:
         self.h5trial_records = self.h5data.create_dataset("trial_records",(10000,len(task_class.DATA_LIST)),maxshape=(None,len(task_class.DATA_LIST)))
         self.h5trial_records.attrs['task_type'] = protocol
         if isinstance(params,basestring):
-            self.h5trial_records.attrs['template_params'] = params
+            self.h5trial_records.attrs['param_template'] = params
+            self.h5trial_records.attrs.update(flatten_dict(template_params))
         elif isinstance(params, dict):
-            self.h5trial_records.attrs.update(params)
-
+            self.h5trial_records.attrs.update(flatten_dict(params))
         self.h5f.flush()
-
 
     def put_away(self):
         self.h5f.flush()
         self.h5f.close()
 
+
+def flatten_dict(d, parent_key=''):
+    """
+    h5py has trouble with nested dicts which are likely to be common w/ complex params. Flatten a dict s.t.:
+        {
+    Lifted from : http://stackoverflow.com/questions/6027558/flatten-nested-python-dictionaries-compressing-keys/6043835#6043835
+    """
+    items = []
+    for k, v in d.items():
+        try:
+            if type(v) == type([]):
+                for n, l in enumerate(v):
+                    items.extend(flatten_dict(l, '%s%s.%s.' % (parent_key, k, n)).items())
+            else:
+                items.extend(flatten_dict(v, '%s%s.' % (parent_key, k)).items())
+        except AttributeError:
+            items.append(('%s%s' % (parent_key, k), v))
+    return dict(items)
+
+
+def expand_dict(d):
+    """
+    Recover flattened dicts
+    """
+    items = dict()
+    for k,v in d.items():
+        if len(k.split('.'))>1:
+            current_level = items
+            for i in k.split('.')[:-1]: #all but the last entry
+                try:
+                    # If we come across an integer, we make a list of dictionaries
+                    i_int = int(i)
+                    if not isinstance(current_level[j],list):
+                        current_level[j] = list() # get the last entry and make it a list
+                    if i_int >= len(current_level[j]): # If we haven't populated this part of the list yet, fill.
+                        current_level[j].extend(None for _ in range(len(current_level[j]),i_int+1))
+                    if not isinstance(current_level[j][i_int],dict):
+                        current_level[j][i_int] = dict()
+                    current_level = current_level[j][i_int]
+                except ValueError:
+                    # Otherwise, we make a sub-dictionary
+                    try:
+                        current_level = current_level[j]
+                    except:
+                        pass
+                    if i not in current_level:
+                        current_level[i] = {}
+                    j = i #save this entry so we can enter it next round if it's not a list
+                    # If the last entry, enter the dict
+                    if i == k.split('.')[-2]:
+                        current_level = current_level[i]
+            current_level[k.split('.')[-1]] = v
+        else:
+            items[k] = v
+    return items
 
 

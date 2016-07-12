@@ -22,10 +22,10 @@ __author__ = 'Jonny Saunders <jsaunder@uoregon.edu>'
 
 import os
 from taskontrol.settings import rpisettings as rpiset
-from taskontrol.core import mouse as Mouse
+from taskontrol.core import mouse
 import h5py
 import datetime
-import RPi.GPIO as GPIO
+# import RPi.GPIO as GPIO
 import pyo
 import threading
 
@@ -36,8 +36,9 @@ class RPilot:
         # Let the terminal deal with stuff like total number of trials, etc.
         self.licks  = rpiset.LICKS
         self.valves = rpiset.VALVES
-        self.init_pins()
-        self.init_pyo()
+        # self.init_pins()
+        # self.init_pyo()
+        self.protocol_ready = 0
         # Synchronize system clock w/ correct time
 
 
@@ -54,21 +55,29 @@ class RPilot:
         self.pyo_server = pyo.Server(audio='jack',sr=rpiset.SAMPLING_RATE,nchnls=rpiset.NUM_CHANNELS).boot()
         self.pyoServer.start()
 
+    def load_sounds(self,sounds):
 
-    def cache_sounds(self):
         # Cache sounds to memory with pyo.SndTable(path)
         pass
 
     def load_mouse(self, name):
-        self.subject = Mouse(name)
+        self.subject = mouse.Mouse(name)
 
-    def load_protocol(self):
-        '''
-        Parameters for setting up the protocol should be in self.subject.protocol_params
-        Then we can do something like self.protocol = protocol_params.type(params)
-        Since the protocol will be a cyclic iterable, running should be as simple as protocol.next(), w/ grad. criter, etc.
-        '''
-        pass
+    def new_mouse(self, name):
+        self.subject = mouse.Mouse(name, new=1)
+
+    def assign_subject_protocol(self, protocol, params):
+        self.subject.assign_protocol(self.subject,protocol,params)
+
+    def prepare_trials(self):
+        try:
+            self.subject
+        except NameError:
+            print("Need to have a subject loaded w/ a protocol assigned to prepare trials!")
+
+
+
+
 
 
     def run(self):
@@ -78,11 +87,14 @@ class RPilot:
         #interrupts in the lower level function should call up here with a basic 2 field event ind:
             #timestamp:event
         #Then each protocol should have a dict that translates that back into human readable trial recs.
-        pass
+        if self.protocol_ready == 0
+            self.prepare_trials()
+
 
     def terminal_interpreter(self):
         #an arg in needs to be the command sent by the network
         #this is the callback for the RPi.GPIO interrupt that handles whatever message is sent
+        pass
 
     def wait(self):
         #after init, wait for connection from the terminal

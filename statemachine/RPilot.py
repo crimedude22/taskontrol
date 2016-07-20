@@ -22,12 +22,13 @@ __author__ = 'Jonny Saunders <jsaunder@uoregon.edu>'
 
 import os
 from taskontrol.settings import rpisettings as rpiset
-from taskontrol.core import mouse
+from taskontrol import core
 import h5py
 import datetime
 # import RPi.GPIO as GPIO
 import pyo
 import threading
+from time import sleep
 
 class RPilot:
     def __init__(self, firstrun=0):
@@ -52,28 +53,59 @@ class RPilot:
         pass
 
     def init_pyo(self):
-        self.pyo_server = pyo.Server(audio='jack',sr=rpiset.SAMPLING_RATE,nchnls=rpiset.NUM_CHANNELS).boot()
-        self.pyoServer.start()
+        # sampling rate, nchan, etc. set in the JACKD_STRING
+        os.system(rpiset.JACKD_STRING)
+        sleep(1) # Wait to let the server start to pyo doesn't try too
+        self.pyo_server = pyo.Server(audio='jack').boot()
+        self.pyo_server.start()
 
     def load_sounds(self,sounds):
-
-        # Cache sounds to memory with pyo.SndTable(path)
-        pass
+        '''
+        Sounds as a param dict. understandable by one of the types in 'sounds'
+        Returns a soundtable-esque packaged soundplayer capable of playing sound with .out()
+        Make unique IDs for each sound for data collection, store param dicts in sound_lookup so IDs can be compared to
+        the param sets that made them.
+        '''
+        self.pyo_sounds = dict()
+        self.sound_lookup = dict()
+        for k,v in sounds.items():
+            # If multiple sounds on one side, 'L' val will be a list.
+            if isinstance(v,list):
+                self.pyo_sounds[k] = list()
+                for i,z in enumerate(v):
+                    # Uses the SWITCH dict in sounds to call the proper function,
+                    # calls fnxn in sounds with parameter dict 'z',
+                    # appends to list of 'k' sounds
+                    self.pyo_sounds[k].append(core.sounds.SWITCH[z['type']](**z))
+                    id = str(k) + str(i)
+                    self.pyo_sounds[k][-1].id = id
+                    self.sound_lookup[id] = z
+            else:
+                self.pyo_sounds[k] = core.sounds.SWITCH[v['type']](**v)
+                self.pyo_sounds[k].id = str(k)
+                self.sound_lookup[k] = v
 
     def load_mouse(self, name):
-        self.subject = mouse.Mouse(name)
+        self.subject = core.mouse.Mouse(name)
+        # also load its protocol and sounds
 
     def new_mouse(self, name):
-        self.subject = mouse.Mouse(name, new=1)
+        self.subject = core.mouse.Mouse(name, new=1)
 
     def assign_subject_protocol(self, protocol, params):
         self.subject.assign_protocol(self.subject,protocol,params)
 
     def prepare_trials(self):
+        # Maybe just make this part of load_mouse
         try:
             self.subject
         except NameError:
             print("Need to have a subject loaded w/ a protocol assigned to prepare trials!")
+
+    def load_protocol(self):
+        # load a mouse's protocol
+        pass
+
 
 
 
@@ -87,7 +119,7 @@ class RPilot:
         #interrupts in the lower level function should call up here with a basic 2 field event ind:
             #timestamp:event
         #Then each protocol should have a dict that translates that back into human readable trial recs.
-        if self.protocol_ready == 0
+        if self.protocol_ready == 0:
             self.prepare_trials()
 
 
@@ -99,10 +131,6 @@ class RPilot:
     def wait(self):
         #after init, wait for connection from the terminal
         #set up a TCP interrupt with RPi.GPIO
-        pass
-
-    def receive_matrix(self,stateMatrix):
-        #basically just want to save a .py file
         pass
 
 

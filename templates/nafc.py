@@ -5,12 +5,17 @@ Template handler set for a 2afc paradigm.
 Want a bundled set of functions so the RPilot can make the task from relatively few params.
 Also want it to contain details about how you should draw 2afcs in general in the terminal
 Remember: have to put class name in __init__ file to import directly.
+Stage functions should each return three dicts: data, triggers, and timers
+    -data: (field:value) all the relevant data for the stage, as named in the DATA_LIST
+    -triggers: (input:action) what to do if the relevant input is triggered
+    -timers: (length(ms):action) input-free timers (input dependent timers like too-early timers should be triggers).
 '''
 
 import random
 from taskontrol.settings import rpisettings as rpiset
 import datetime
 import itertools
+import warnings
 
 TASK = 'Nafc'
 
@@ -22,7 +27,7 @@ class Nafc:
 
     # Class attributes
     PARAM_LIST = ['sounds', 'reward', 'punish', 'pct_correction', 'bias_mode']
-    DATA_LIST = ['target', 'target_sound', 'response', 'correct', 'timestamp', 'bias']
+    DATA_LIST = ['target','target_sound_id', 'response', 'correct', 'bias', 'RQtimestamp','DCtimestamp','RWtimestamp']
 
     def __init__(self, sounds, reward=50, punish=2000, pct_correction=.5, bias_mode=1, assisted_assign=0):
         # Sounds are a dict like {'L': 'path/to/file.wav', 'R': 'etc'} or {'L':['path/to/sound1.wav','path/to/sound2.wav']}
@@ -39,20 +44,26 @@ class Nafc:
 
         # Fixed parameters
         self.sounds = sounds
-        self.sound_player = None
+        if 'Wrong' in self.sounds.keys():
+            self.punish_sound = self.sounds['Wrong']
+        else:
+            self.punish_sound = None
         self.reward = reward
         self.punish = punish
         self.pct_correction = pct_correction
         self.bias_mode = bias_mode
-        self.stage_names = ["request","discrim","reinforcement"]
+        self.stage_names = ["request","discrim"]
 
 
         # Variable Parameters
         self.target = None
         self.target_sound = None
-        self.bias = None
+        self.target_sound_id = None
+        self.distractor = None
+        self.bias = float(0)
         self.response = None
         self.correct = None
+        self.correction = None
 
         # This allows us to cycle through the task by just repeatedly calling self.stages.next()
         self.stages = itertools.cycle([self.request,self.discrim,self.reinforcement])
@@ -62,36 +73,95 @@ class Nafc:
     ##################################################################################
     # Stage Functions
     ##################################################################################
-    def request(self):
+    def request(self,**kwargs):
 
-        if random.random() > .5:
-            self.target = 'L'
-            self.target_sound = random.choice(self.sounds['L'])
+        # Set bias threshold
+        if self.bias_mode == 0:
+            randthresh = 0.5
+        elif self.bias_mode ==1:
+            randthresh = 0.5 + self.bias
         else:
-            self.target = 'R'
-            self.target_sound = random.choice(self.sounds['R'])
+            randthresh = 0.5
+            warnings.warn("bias_mode is not defined or defined incorrectly")
 
-        data = {'target':self.target,'target_sound':self.target_sound,'timestamp':datetime.datetime.now().isoformat()}
-        # triggers = {'C':}
-        timer = 'inf'
-        return data
+        # Decide if correction trial (repeat last stim) or choose new target/stim
+        if (random.random() > self.pct_correction) or (self.target == None):
+            # Choose target side and sound
+            self.correction = 0
+            if random.random() > randthresh:
+                self.target = 'R'
+                self.target_sound = random.choice(self.sounds['R'])
+                self.distractor = 'L'
+            else:
+                self.target = 'L'
+                self.target_sound = random.choice(self.sounds['L'])
+                self.distractor = 'R'
+        else:
+            self.correction = 1
+            # No need to define the rest, just keep it from the last trial.
 
-    def discrim(self):
-        # Figure some way to access RPilot's sound server to play sound, or else put trigger in RPilot that plays sound from request
-        # then sleep for duration of sound
-        data = {'timestamp':datetime.datetime.now().isoformat()}
-        return data
 
-    def reinforcement(self,pin):
-        # pin passed from callback function
+        # Attempt to identify target sound
+        try:
+            self.target_sound_id = self.target_sound.id
+        except AttributeError:
+            warnings.warn("Sound ID not defined! Sounds cannot be uniquely identified!")
+            self.target_sound_id = None
+
+        data = {
+            'target':self.target,
+            'target_sound_id':self.target_sound_id,
+            'RQtimestamp':datetime.datetime.now().isoformat()
+        }
+        triggers = {
+            'C':self.target_sound
+        }
+        timers = {
+            'inf':None
+        }
+        return data,triggers,timers
+
+    def discrim(self,**kwargs):
+
+        # Only data is the timestamp
+        data = {'DCtimestamp': datetime.datetime.now().isoformat()}
+
+        triggers = {
+            self.target:{'reward':self.reward},
+            self.distractor:{'punish':self.punish,'punish_sound':self.punish_sound}
+        }
+
+        timers = {
+            '10000':self.reset_stages
+        }
+
+        return data,triggers,timers
+
+    def reinforcement(self,pin,**kwargs):
+        # pin passed from callback function as string version ('L', 'C', etc.)
         self.response = pin
-        if pin == self.target:
+        if self.response == self.target:
             self.correct = 1
         else:
             self.correct = 0
-            # play self.sounds["punish"]
 
-        data = {'response':self.response, 'correct':self.correct}
+        if self.bias_mode == 1:
+            # Use a "running average" of responses to control bias. Rather than computing the bias each time from
+            # a list of responses, we just update a float weighted with the inverse of the "window size"
+            # Sign is arbitrary, but make sure it corresponds to the inequality that assigns targets in request()!
+            # The window_size is multiplied by two so our values stay between -0.5 and 0.5 rather than -1 and 1
+            # That way, when added to the default 0.5 chance of selecting a side, we are bounded between -1 and 1
+            window_size = float(50)*2
+            if self.response == 'L':
+                self.bias = max(self.bias-(1/window_size),-0.5)
+            elif self.response == 'R':
+                self.bias = min(self.bias+(1/window_size),0.5)
+
+        data = {
+            'response':self.response,
+            'correct':self.correct,
+            'bias':self.bias
+        }
         return data
         # Also calc ongoing vals. like bias.
 
@@ -101,14 +171,9 @@ class Nafc:
         """
         self.stages = itertools.cycle([self.request, self.discrim, self.reinforcement])
 
-    def give_sound_player(self,sound_player):
-        # Be given the handle of the sound player by RPilot.
-        # We can't *get* the sound player because we don't know where to get it from without instantiating a new Pilot.
-        self.sound_player = sound_player
-
     def assisted_assign(self):
         # This should actually be just a way to send the param_list to terminal
-        # for param in self.param_list:
+        # for param in self.param_list: ...
         pass
 
 
@@ -138,6 +203,12 @@ FREQ_DISCRIM_TEST = {
     'punish':2000,
     'pct_correction':0.5,
     'bias_mode':1
+}
+
+SOUND_TEST = {
+    'L': [{'type': 'tone', 'frequency': 500, 'duration': 500, 'amplitude': .1},
+          {'type': 'tone', 'frequency': 700, 'duration': 500, 'amplitude': .1}],
+    'R': {'type': 'tone', 'frequency': 2000, 'duration': 500, 'amplitude': .1}
 }
 
 

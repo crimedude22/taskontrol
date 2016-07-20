@@ -23,6 +23,7 @@ SPEAKER_CALIBRATION = None
 SPEAKER_AMPLITUDE = 0.1
 SAMPLING_RATE = 92000
 NUM_CHANNELS = 2
+JACKD_STRING = 'pasuspender -- /usr/bin/jackd -R -dalsa -s &'
 
 # Where should we store data?
 PI_DATA_DIR = '/var/tmp/data/'

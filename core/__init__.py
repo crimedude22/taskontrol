@@ -18,6 +18,9 @@ paramgui
 
 '''
 
+import sounds
+import mouse
+
 '''
 NOT READY
 dispatcher

@@ -5,29 +5,41 @@ classes to build sounds from parameters
 use the SOUND_SWITCH to allow listing of sound types in the GUI & flexible coding from other modules
 then you can call sounds like sounds.SWITCH['tone'](freq=1000, etc.)
 
-returns
+Each function should return a pyo soundTable object that can be played with its .out() method.
+Notes on creating functions:
+    -You must include **kwargs in the methods statement or otherwise handle the 'type' key fed to the function
 '''
 
 import pyo
+from time import sleep
+from taskontrol.settings import rpisettings as rpiset
 
-SWITCH = {
-    'tone':Tone
 
-}
 
-def Tone(frequency,duration,amplitude=0.1,phase=0):
+def Tone(frequency,duration,amplitude=0.3,phase=0,**kwargs):
     '''
     The Humble Sine Wave
     '''
-    tab = pyo.SquareTable()
-    trig = pyo.Trig()
-    tenv = pyo.TrigEnv(trig,table=tab,dur=5,mul=.3)
-    fad = pyo.Fader(fadein=0.1,fadeout=0.1,dur=3,mul=.3)
-    sin = pyo.Sine(300,mul=fad).out()
+    sin = pyo.Sine(frequency,mul=amplitude)
+    tableout = TableWrap(sin,duration)
+    return tableout
 
+def Wav_file(path,duration):
+    pass
 
-class Test:
-    def __call__(self,str):
-        print(str)
+def TableWrap(audio,duration):
+    '''
+    Records a PyoAudio generator into a sound table, returns a tableread object which can play the audio with .out()
+    '''
+    # Duration is in ms, so divide by 1000
+    audio.play()
+    tab = pyo.NewTable(length=(float(duration)/1000),chnls=rpiset.NUM_CHANNELS)
+    tabrec = pyo.TableRec(audio,table=tab,fadetime=0.01)
+    tabrec.play()
+    sleep((float(duration)/1000))
+    tabread = pyo.TableRead(tab,loop=0)
+    return tabread
 
-def Wav_file(path,duration,)
+SWITCH = {
+    'tone':Tone
+}

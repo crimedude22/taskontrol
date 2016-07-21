@@ -31,6 +31,7 @@ class Mouse:
         self.__dict__.update(dict(self.h5f["info"].attrs.items()))
 
         # Load Task if Exists
+        # TODO make this more robust for multiple tasks - saving position, etc.
         self.task = None
         if self.h5data.keys():
             last_assigned_task = self.h5data.keys()[-1]
@@ -39,18 +40,19 @@ class Mouse:
 
             # Params can be described with a string for a template parameter set, load it if it was
             if 'param_template' in self.h5trial_records.attrs.keys():
-                self.param_template = self.h5trial_records.attrs['template_params']
+                self.param_template = self.h5trial_records.attrs['param_template']
 
             param_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if not key == 'task_type')
             self.task_params = expand_dict(param_dict)
 
-            self.assign_protocol(self.task_type,self.task_params)
+            self.load_protocol(self.task_type,self.task_params)
 
     def new_mouse(self,name):
         try:
             self.h5f = h5py.File(rpiset.PI_DATA_DIR + self.name + '.hdf5', 'w-')
         except:
             print("Mouse already has a file.")
+            # TODO ask if user wants to redefine all params or just set new protocol.
             return
 
         # Basic info about the mouse
@@ -99,6 +101,7 @@ class Mouse:
             raise TypeError('Not sure what to do with your Params, need dict or string reference to parameter set in template')
 
         # Make dataset in the hdf5 file to store trial records. When protocols are multiple steps, this will be multiple datasets
+        # TODO currently this would make a new dataset every time the mouse is loaded. Make this a "new protocol" function and have existing protocols loaded in a different fnxn.
         self.h5trial_records = self.h5data.create_dataset("trial_records",(10000,len(task_class.DATA_LIST)),maxshape=(None,len(task_class.DATA_LIST)))
         self.h5trial_records.attrs['task_type'] = protocol
         if isinstance(params,basestring):
@@ -107,6 +110,39 @@ class Mouse:
         elif isinstance(params, dict):
             self.h5trial_records.attrs.update(flatten_dict(params))
         self.h5f.flush()
+
+    def load_protocol(self,protocol,params):
+        # Import the task class from its module
+        template_module = import_module('taskontrol.templates.{}'.format(protocol))
+        task_class = getattr(template_module,template_module.TASK)
+
+        # Check if params are a dict of params or a string referring to a premade parameter set
+        if isinstance(params, basestring):
+            template_params = getattr(template_module, params)
+            self.task = task_class(**template_params)
+        elif isinstance(params, dict):
+            self.task = task_class(**params)
+        else:
+            raise TypeError('Not sure what to do with your Params, need dict or string reference to parameter set in template')
+
+    def receive_sounds(self,sounds,sound_lookup):
+        # To be passed by RPilot after initing the Mouse
+        self.task.sounds = sounds
+        self.task.sound_lookup = sound_lookup
+        # Update records with lookup table. Append date of lookup if conflicts
+        if set(sound_lookup.items()).issubset(self.h5trial_records.attrs.items()):
+            # Do nothing because we already have the lookup correctly stored
+            pass
+        elif bool(set(sound_lookup.keys()).intersection(self.h5trial_records.attrs.keys())):
+            # If there are some shared keys, but the items are not a subset, then some of the values must differ or else we have new sounds.
+            # Either way, we prepend date as a "proleptic Gregorian" date (day 1 of year 1 is 1, etc.) to avoid conflict.
+            self.h5trial_records.attrs.update(flatten_dict(sound_lookup,parent_key="LU_{}_".format(datetime.date.today().toordinal())))
+        else:
+            # If nothing was in the above intersection check, we don't have any lookup data, so we just write it straight up
+            self.h5trial_records.attrs.update(flatten_dict(sound_lookup,parent_key="LU_"))
+        self.h5f.flush()
+
+
 
     def put_away(self):
         self.h5f.flush()

@@ -27,11 +27,23 @@ class Nafc:
 
     # Class attributes
     PARAM_LIST = ['sounds', 'reward', 'punish', 'pct_correction', 'bias_mode']
-    DATA_LIST = ['target','target_sound_id', 'response', 'correct', 'bias', 'RQtimestamp','DCtimestamp','RWtimestamp']
+    DATA_LIST = ['trial_num','target','target_sound_id', 'response', 'correct', 'bias', 'RQtimestamp','DCtimestamp','RWtimestamp']
 
-    def __init__(self, sounds, reward=50, punish=2000, pct_correction=.5, bias_mode=1, assisted_assign=0):
-        # Sounds are a dict like {'L': 'path/to/file.wav', 'R': 'etc'} or {'L':['path/to/sound1.wav','path/to/sound2.wav']}
-        # Or like {'L':{'tone':500} etc. when that's implemented. sounds['punish'] for punish sound
+    def __init__(self, soundict, reward=50, punish=2000, pct_correction=.5, bias_mode=1, assisted_assign=0):
+        # Sounds come in two flavors
+        #   soundict: a dict of parameters like:
+        #       {'L': 'path/to/file.wav', 'R': 'etc'} or
+        #       {'L':['path/to/sound1.wav','path/to/sound2.wav']} or
+        #       {'L':{'type':'tone', 'frequency':500}} etc.
+        #       This is the type that should be passed to the __init__. soundicts are useful for record keeping,
+        #       protocol design, etc. but obviously can't be played. Because we want to keep the task class agnostic to
+        #       the implementation of the sound system (and PYO is very picky about its namespace anyway),
+        #       we also can't make the sounds here. Instead, RPilot should assign a 'sound' dict to the task instance on run.
+        #   sounds: a dict of PYO sound tables or other audio objects that the RPilot knows how to play. like:
+        #       {'L':[<sound object 1>,<sound object 2>],etc.}
+        #       Ideally, the objects will be passed with their playing function unevaluated (eg. pyoTable.out) so that
+        #       RPilot can just call it to play (its default behavior). A sound object should also have an additional
+        #       attribute "id," created at run by RPilot so that each sound can be uniquely identified.
         # Rewards, punish time, etc. in ms.
         # pct_correction is the % of trials that are correction trials
         # bias_correct is 1 or 0 whether you'd like bias correction enabled: eg. if mice are 65% biased towards one side,
@@ -43,17 +55,12 @@ class Nafc:
             return
 
         # Fixed parameters
-        self.sounds = sounds
-        if 'Wrong' in self.sounds.keys():
-            self.punish_sound = self.sounds['Wrong']
-        else:
-            self.punish_sound = None
+        self.soundict = soundict
         self.reward = reward
         self.punish = punish
         self.pct_correction = pct_correction
         self.bias_mode = bias_mode
         self.stage_names = ["request","discrim"]
-
 
         # Variable Parameters
         self.target = None
@@ -65,15 +72,24 @@ class Nafc:
         self.correct = None
         self.correction = None
 
+        # Passed by RPilot after init
+        self.sounds = None
+        self.sound_lookup = None
+
         # This allows us to cycle through the task by just repeatedly calling self.stages.next()
         self.stages = itertools.cycle([self.request,self.discrim,self.reinforcement])
 
         # Checking that input
 
+
+
     ##################################################################################
     # Stage Functions
     ##################################################################################
     def request(self,**kwargs):
+
+        if not self.sounds:
+            raise RuntimeError('\nSound objects have not been passed! Make sure RPilot makes sounds from the soundict before running.')
 
         # Set bias threshold
         if self.bias_mode == 0:
@@ -126,10 +142,16 @@ class Nafc:
         # Only data is the timestamp
         data = {'DCtimestamp': datetime.datetime.now().isoformat()}
 
-        triggers = {
-            self.target:{'reward':self.reward},
-            self.distractor:{'punish':self.punish,'punish_sound':self.punish_sound}
-        }
+        try:
+            triggers = {
+                self.target:{'reward':self.reward},
+                self.distractor:{'punish':{'duration':self.punish,'punish_sound':self.sounds['punish'].out}}
+            }
+        except KeyError:
+            triggers = {
+                self.target:{'reward':self.reward},
+                self.distractor:{'punish':self.punish,'punish_sound':None}
+            }
 
         timers = {
             '10000':self.reset_stages
@@ -174,6 +196,7 @@ class Nafc:
     def assisted_assign(self):
         # This should actually be just a way to send the param_list to terminal
         # for param in self.param_list: ...
+        # TODO Implement this as a generic template function: ask for params in the param list.
         pass
 
 
@@ -195,9 +218,10 @@ FREQ_DISCRIM = {
 
 FREQ_DISCRIM_TEST = {
     'sounds':{
-        'L': [{'type':'tone','frequency':500, 'duration':500,'amplitude':.1},
-             {'type':'tone','frequency':700, 'duration':500,'amplitude':.1}],
-        'R': {'type':'tone','frequency':2000,'duration':500,'amplitude':.1}
+        'L': [{'type':'tone','frequency':500, 'duration':500,'amplitude':.3},
+             {'type':'tone','frequency':700, 'duration':500,'amplitude':.3}],
+        'R': {'type':'tone','frequency':2000,'duration':500,'amplitude':.3},
+        'punish':{'type':'noise','duration':500,'amplitude':0.3}
     },
     'reward':[50,60,70],
     'punish':2000,

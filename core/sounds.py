@@ -24,6 +24,15 @@ def Tone(frequency,duration,amplitude=0.3,phase=0,**kwargs):
     tableout = TableWrap(sin,duration)
     return tableout
 
+def Noise(duration,amplitude,**kwargs):
+    '''
+    White Noise straight up
+    '''
+    noiser = pyo.Noise(mul=amplitude)
+    tableout = TableWrap(noiser,duration)
+    return tableout
+
+
 def Wav_file(path,duration):
     pass
 
@@ -41,5 +50,6 @@ def TableWrap(audio,duration):
     return tabread
 
 SWITCH = {
-    'tone':Tone
+    'tone':Tone,
+    'noise':Noise
 }

@@ -233,7 +233,7 @@ class SoundPlayer(threading.Thread):
             #return(None,None)
 
     def play_sound(self,soundID):
-        # FIXME: check that this sound has been defined
+        # XFIXME: check that this sound has been defined
         if USEJACK:
             try:
                 if isinstance(self.soundwaves[soundID],list):
@@ -285,19 +285,19 @@ class SoundClient(object):
 
     '''
     def create_sounds(self):
-        # FIXME: should be removed. set_sound should create the sound.
+        # XFIXME: should be removed. set_sound should create the sound.
         self.soundPlayerThread.create_sounds()
     '''
 
     def play_sound(self,soundID):
-        # FIXME: check that this sound as been defined
+        # XFIXME: check that this sound as been defined
         self.soundPlayerThread.play_sound(soundID)
 
     def stop_all(self):
         pass
 
     def shutdown(self):
-        # FIXME: disconnect serial
+        # XFIXME: disconnect serial
         self.soundPlayerThread.shutdown()
 
 

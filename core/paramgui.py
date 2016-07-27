@@ -29,7 +29,7 @@ import time
 from taskontrol.core import utils
 from taskontrol.settings import rigsettings
 
-# FIXME: Add validation of numbers
+# XXFIXME: Add validation of numbers
 #NUMERIC_REGEXP = 
 
 class Container(dict):
@@ -124,7 +124,7 @@ class Container(dict):
         itemsParent = 'resultsLabels'   # Items in menu parameters
         sessionParent = 'sessionData'   # Parameters for the whole session
         descriptionAttr = 'Description'
-        # FIXME: the contents of description should not be the label, but the
+        # XXFIXME: the contents of description should not be the label, but the
         #        description of the parameter (including its units)
         trialDataGroup = h5file.require_group(dataParent)
         menuItemsGroup = h5file.require_group(itemsParent)
@@ -147,7 +147,7 @@ class Container(dict):
                 dset.attrs['Description'] = item.get_label()
                 if item.get_type()=='numeric':
                     dset.attrs['Units'] = item.get_units()
-                # FIXME: not very ObjectOriented to use getType
+                # XXFIXME: not very ObjectOriented to use getType
                 #        the object should be able to save itself
                 if item.get_type()=='menu':
                     #h5file.createArray(menuItemsGroup, key, item.get_items(),
@@ -296,7 +296,7 @@ class MenuParam(GenericParam):
         self.editWidget.setCurrentIndex(value)
 
     def set_string(self,newstring):
-        # FIXME: graceful warning if wrong string (ValueError exception)
+        # XXFIXME: graceful warning if wrong string (ValueError exception)
         try:
             value = self._items.index(newstring)
         except ValueError:
@@ -380,7 +380,7 @@ def center_in_screen(widget):
     widget.move(qr.topLeft())
 
 '''
-# FIXME: I don't know yet how to connect signals to this function
+# XFIXME: I don't know yet how to connect signals to this function
 def show_message(window,msg):
     window.statusBar().showMessage(str(msg))
     print msg

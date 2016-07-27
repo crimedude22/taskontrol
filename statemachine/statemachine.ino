@@ -6,7 +6,7 @@ NOTES:
 - During development I set inputs as INPUT_PULLUP
 - During development I inverted the inputs
 
-FIXME:
+XXFIXME:
 - There must be a better way to transfer large datasets (e.g., statematrix) than
   using while(!Serial.available()) before every byte.
 
@@ -174,7 +174,7 @@ void execute_cycle() {
   for (indi = 0; indi < nInputs; indi++) {
     previousValue = inputValues[indi];
 #ifdef HARDWARE_TEST
-    inputValues[indi] = !digitalRead(inputPins[indi]);  // FIXME: DEBUG: inverting signals
+    inputValues[indi] = !digitalRead(inputPins[indi]);  // XXFIXME: DEBUG: inverting signals
 #else
     inputValues[indi] = digitalRead(inputPins[indi]);
 #endif
@@ -191,7 +191,7 @@ void execute_cycle() {
     add_event(2*nInputs);
     stateTimerValue = currentTime; // Restart timer
   }
-  // FIXME: is this the right way to reset the timer?
+  // XXFIXME: is this the right way to reset the timer?
 
 
   // -- Test if any extra timer finished --
@@ -312,7 +312,7 @@ void loop(){
 	break;
       }
       case FORCE_OUTPUT: {
-	// FIXME: this must change given the new way of dealing with outputs
+	// XXFIXME: this must change given the new way of dealing with outputs
 	//        and I should check if nOutputs have been defined.
 	while (!Serial.available()) {} // Wait for data
 	indo = Serial.read();          // Read the output index
@@ -428,7 +428,7 @@ void loop(){
 	break;
       }
       case GET_EVENTS: {
-	Serial.write((char) nEvents); // FIXME: this limits it to 256
+	Serial.write((char) nEvents); // XXFIXME: this limits it to 256
 	for (inde=0; inde < nEvents; inde++) {
 	  Serial.print(eventsTime[inde]);
 	  Serial.print(" ");

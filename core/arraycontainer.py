@@ -26,7 +26,7 @@ class Container(dict):
         for key,item in self.iteritems():
             dset = resultsDataGroup.create_dataset(key, data=item[:currentTrial])
         for key,item in self.labels.iteritems():
-            # FIXME: Make sure items of self.labels are dictionaries
+            # XXFIXME: Make sure items of self.labels are dictionaries
             utils.append_dict_to_HDF5(resultsLabelsGroup,key,item)
 
 if __name__ == "__main__":

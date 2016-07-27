@@ -12,6 +12,8 @@ import h5py
 import datetime
 from importlib import import_module
 import json
+import numpy as np
+import warnings
 
 class Mouse:
     """Mouse object for managing protocol, parameters, and data"""
@@ -24,6 +26,8 @@ class Mouse:
             return
 
         self.h5f = h5py.File(rpiset.PI_DATA_DIR + self.name + '.hdf5', 'r+')
+        self.h5f.swmr_mode = True # Allows terminal to read while we write
+        # TODO Remember to have terminal open the h5 file with swmr=True
         self.h5info = self.h5f['info']
         self.h5data = self.h5f['data']
 
@@ -38,12 +42,15 @@ class Mouse:
             self.h5trial_records = self.h5data[last_assigned_task]
             self.task_type = self.h5trial_records.attrs['task_type']
 
+            param_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if key.startswith("PARAM_"))
+            data_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if key.startswith("DATA_"))
+            self.task_params = expand_dict(param_dict)
+            self.task_data = data_dict
+
             # Params can be described with a string for a template parameter set, load it if it was
             if 'param_template' in self.h5trial_records.attrs.keys():
                 self.param_template = self.h5trial_records.attrs['param_template']
-
-            param_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if not key == 'task_type')
-            self.task_params = expand_dict(param_dict)
+                self.task_params = self.param_template
 
             self.load_protocol(self.task_type,self.task_params)
 
@@ -91,6 +98,11 @@ class Mouse:
         template_module = import_module('taskontrol.templates.{}'.format(protocol))
         task_class = getattr(template_module,template_module.TASK)
 
+        self.task_data = task_class.DATA_LIST
+        if 'trial_num' not in self.task_data.keys():
+            warnings.warn('You didn\'t declare you wanted trial numbers saved. Inserted, but go back and check your task class')
+            self.task_data.update({'trial_num':'i32'})
+
         # Check if params are a dict of params or a string referring to a premade parameter set
         if isinstance(params, basestring):
             template_params = getattr(template_module, params)
@@ -101,14 +113,19 @@ class Mouse:
             raise TypeError('Not sure what to do with your Params, need dict or string reference to parameter set in template')
 
         # Make dataset in the hdf5 file to store trial records. When protocols are multiple steps, this will be multiple datasets
-        # TODO currently this would make a new dataset every time the mouse is loaded. Make this a "new protocol" function and have existing protocols loaded in a different fnxn.
-        self.h5trial_records = self.h5data.create_dataset("trial_records",(10000,len(task_class.DATA_LIST)),maxshape=(None,len(task_class.DATA_LIST)))
+        # dtype arg - We have to specifically declare the type of data we are storing since we are likely to have multiple types
+            # We do so with a list of tuples, gotten by calling .items() on the DATA_LIST dict
+            # See http://docs.h5py.org/en/latest/whatsnew/2.2.html#field-indexing-is-now-allowed-when-writing-to-a-dataset-issue-42
+        # The dataset is of shape ntrials x 1 because each row is a set of tuples, as specified by the dtype argument.
+
+        self.h5trial_records = self.h5data.create_dataset("trial_records",(10000,1),maxshape=(None,1),dtype=np.dtype(self.task_data.items()))
         self.h5trial_records.attrs['task_type'] = protocol
+        self.h5trial_records.attrs.update(flatten_dict(self.task_data,'DATA_'))
         if isinstance(params,basestring):
             self.h5trial_records.attrs['param_template'] = params
-            self.h5trial_records.attrs.update(flatten_dict(template_params))
+            self.h5trial_records.attrs.update(flatten_dict(template_params,'PARAM_'))
         elif isinstance(params, dict):
-            self.h5trial_records.attrs.update(flatten_dict(params))
+            self.h5trial_records.attrs.update(flatten_dict(params,'PARAM_'))
         self.h5f.flush()
 
     def load_protocol(self,protocol,params):
@@ -142,7 +159,20 @@ class Mouse:
             self.h5trial_records.attrs.update(flatten_dict(sound_lookup,parent_key="LU_"))
         self.h5f.flush()
 
+    def save_trial(self,data):
+        # Find the next open row using trial_num (because all tasks should have it)
 
+        try:
+            # We find the first position (double [0][0] because structured array) where trial_num is undefined
+            this_row = np.where(self.h5trial_records['trial_num'].any(axis=1) == False)[0][0]
+        except IndexError:
+            # If there aren't any rows left, we should make our array larger
+            self.h5trial_records.resize(self.h5trial_records.len()+10000,axis=1)
+            this_row = np.where(self.h5trial_records['trial_num'].any(axis=1) == False)[0][0]
+
+        # slice in data dict - index w/ a tuple that's (rownum,field1,field2) and update with (val1,val2)
+        self.h5trial_records.__setitem__(((this_row,) + tuple(data.keys())),tuple(data.values()))
+        self.h5f.flush()
 
     def put_away(self):
         self.h5f.flush()

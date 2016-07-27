@@ -123,7 +123,7 @@ class SaveData(QtGui.QGroupBox):
             fname = defaultFileName
         
         # -- Create data file --
-        # FIXME: check that the file opened correctly
+        # XXFIXME: check that the file opened correctly
         h5file = h5py.File(fname,'w')
 
         for container in containers:
@@ -150,7 +150,7 @@ class SaveData(QtGui.QGroupBox):
     def send_to_repository(self,relativePath,fileNameOnly):
         '''
         Send saved data to repository.
-        FIXME: The remote subdirectories must exist, otherwise it will fail.
+        XFIXME: The remote subdirectories must exist, otherwise it will fail.
         '''
         verificationFile = os.path.join(self.remotedir,REMOTEDIR_VERIFICATION)
         if os.path.exists(verificationFile):

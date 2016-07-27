@@ -332,7 +332,7 @@ class Paradigm(templates.Paradigm2AFC):
 
         # -- Find beginning of trial --
         startTrialStateID = self.sm.statesNameToIndex['startTrial']
-        # FIXME: Next line seems inefficient. Is there a better way?
+        # XXFIXME: Next line seems inefficient. Is there a better way?
         startTrialInd = np.flatnonzero(eventsThisTrial[:,2]==startTrialStateID)[0]
         self.results['timeTrialStart'][trialIndex] = eventsThisTrial[startTrialInd,0]
 

@@ -39,7 +39,7 @@ class SidesPlot(pg.PlotWidget):
         self.addItem(self.mainPlot)
 
         self.outcomeIDs = {'correct':1,'error':0,'invalid':2,'free':3,'nochoice':4,'aftererror':5,'aborted':6} 
-        # FIXME: This should come from somewhere else (to be consisten with the rest)
+        # XFIXME: This should come from somewhere else (to be consisten with the rest)
 
         # -- Graphical adjustments --
         yAxis = self.getAxis('left')

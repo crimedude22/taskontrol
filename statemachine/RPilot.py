@@ -39,7 +39,7 @@ class RPilot:
         self.licks  = rpiset.LICKS
         self.valves = rpiset.VALVES
         self.licks_inv = {v: k for k,v in self.licks.items()} #So we can translate pin # to 'L', etc.
-        self.data = None
+        self.data = dict()
         self.triggers = None
         self.timers = None
         self.wait = None
@@ -47,7 +47,9 @@ class RPilot:
         # self.init_pyo()
         self.protocol_ready = 0
 
+
         # Init TCP/IP connection
+        # TODO TCP/IP communication w/ terminal
         # Synchronize system clock w/ time from terminal.
         # Send message back to terminal that we're all good.
 
@@ -79,6 +81,14 @@ class RPilot:
     #################################################################
     # Mouse and Protocol Management
     #################################################################
+    def load_mouse(self, name):
+        # Task should be assigned in the Mouse object such that subject.stages.next() should run the next stage.
+        self.subject = core.mouse.Mouse(name)
+        # We have to make the sounds for the task so the task class can remain agnostic to the sound implementation
+        # TODO: Check if task is assigned before trying to load sounds.
+        self.load_sounds(self.subject.task.soundict)
+        self.subject.receive_sounds(self.pyo_sounds,self.sound_lookup)
+
     def load_sounds(self,sounds):
         '''
         Sounds as a param dict. understandable by one of the types in 'sounds'
@@ -105,14 +115,6 @@ class RPilot:
                 self.pyo_sounds[k].id = str(k)
                 self.sound_lookup[k] = v
 
-    def load_mouse(self, name):
-        # Task should be assigned in the Mouse object such that subject.stages.next() should run the next stage.
-        self.subject = core.mouse.Mouse(name)
-        # We have to make the sounds for the task so the task class can remain agnostic to the sound implementation
-        # TODO: Check if task is assigned before trying to load sounds.
-        self.load_sounds(self.subject.task.soundict)
-        self.subject.receive_sounds(self.pyo_sounds,self.sound_lookup)
-
     def new_mouse(self, name):
         self.subject = core.mouse.Mouse(name, new=1)
 
@@ -122,24 +124,56 @@ class RPilot:
     #################################################################
     # Trial Running and Management
     #################################################################
-    def run(self):
+    def run(self,pin = None):
+        """
+        Refresher on the terminology that's been adopted: a "Protocol" is a collection of "Steps", each of which is a "Task" with promotion criteria to the next step.
+            Each task is composed of "stages" which are the individual points of decision and response that the RPi and mouse engage in.
+        Tasks are run "stagewise," where the run function calls next() on the iterator that contains the stage functions.
+            Tasks are only recognized as such when an "end_trial" trigger is returned by the stage function, prompting the
+            RPilot to save the trial's data. Otherwise they are run continuously.
+        Each run cycle proceeds:
+            -check_ready(): checks if everything has been prepared for the trial. The Task should provide a list of things to check (not implemented yet)
+            -subject.task.next(): computes the logic for the next trial stage, returns data, triggers, and timers.
+            -handle_triggers(): if triggers aren't returned as callable functions (rewards, for example, can't be
+                returned as functions b/c the task doesn't know about the reward hardware), we make them callable.
+            -
+
+        pin passes the triggered pin (if any) back to the task class
+        """
         if not self.check_ready():
-            # Make more verbose as check_ready is populated
+            # TODO Make more verbose as check_ready is populated
             raise Exception("Our check didn't turn out which is weird because it doesn't check anything yet")
-        data,triggers,timers = self.subject.task.next()
+
+        # Calculate the next stage
+        data,triggers,timers = self.subject.task.next(pin)
 
         # Check if our triggers are functions or need to be made functions
         for k,v in triggers.items():
             if not callable(v):
-                triggers[k] = self.cb_wrapper(v)
+                triggers[k] = self.wrap_triggers(k,v)
+
+        # Set up a timer thread to handle timers -
+            # for example, a too early timer would replace the triggers with the too_early_sound until the dur. of the stim is up
+            # then change it back when the time is up.
+            # wrap sound trigger in function that sets an event when the sound is finished playing
+                #trig = tabobj['trig'], trigfunc(trig, switch_trigs)
+
+        self.handle_timers(timers)
 
         # TODO Check if any of our triggers ask us to wait before making the next stage's triggers available (eg. punish delay)
+        # TODO Implement the 'immediate' timer to immediately call next stage
         # like make the function a new thread, and then check for the thread's completion before assigning the next round's triggers
 
         # Make triggers available to pin_cb function - which will do the calling in a separate thread
         self.triggers = triggers
 
-        # TODO: Write the data that was returned
+        # Add returned data to trial data dict. If this is the last stage in the trial, save the data.
+        if "task_end" in triggers.keys():
+            self.data.update(data)
+            self.subject.save_trial(self.data)
+        else:
+            self.data.update(data)
+
 
         # TODO: Wait for any timers
 
@@ -155,50 +189,42 @@ class RPilot:
         try:
             self.triggers[self.licks_inv[pin]]()
             self.triggers = None # clear triggers so no double taps
-            self.run()
+            self.run(self.licks_inv[pin])
         except:
+            # If the port doesn't have a trigger assigned to it...
             pass
 
-    class cb_wrapper:
+    def handle_triggers(self):
+        """
+        When the pins can't speak for themselves...
+        :return:
+        """
+        pass
+
+    def handle_timers(self,timerdict):
+        # Handle timers depending on type (key of timerdict)
+        if not isinstance(timerdict,dict):
+            raise TypeError("Timers need to be returned as a dictionary of form {'type':params}")
+        for k,v in timerdict.items():
+            if k == 'too_early':
+                # Assumes a single pyo soundTable trigger,
+            else:
+                # TODO implement timeout
+                raise RuntimeError("Don't know how to handle this type of timer")
+
+    def wrap_triggers(self,key,val):
         # TODO: redo this, this is dumb. we can't open ports this way. Just make a handling function that returns a function for christ's sake.
         """
         Some triggers can't be passed as as already-made bound methods. We can handle that without breaking the generality of run()
         Map a trigger to a handling function which can then be called independently.
-        eg. x = cb_wrapper(trigger={'playsound':'yowza!'} - (everybody's favorite sound)
-            y = cb_wrapper(trigger={'playsound':'dy-no-mite!'} - (yuck, who let you in my house?)
+        eg. x = wrap_trigger(trigger={'playsound':'yowza!'} - (everybody's favorite sound)
+            y = wrap_trigger(trigger={'playsound':'dy-no-mite!'} - (yuck, who let you in my house?)
         x() and y() can then be used separately as triggers that the task instance is unable to make itself.
         """
-        def __init__(self,trigger):
-            if isinstance(trigger,dict):
-                # Each trigger should only have one top-level key and one value, so indexing w/ [0] is appropriate
-                funk_map = {
-                    'punish':self.handle_punish
-                }
+        if key == 'task_end':
+            trigger = None
 
-                self.wrapped_trigger = funk_map[trigger.keys()[0]]
-        def __call__(self):
-            self.wrapped_trigger(**trigger.values()[0])
-
-        def handle_punish(self,duration,punish_sound=None):
-            if punish_sound:
-                # For now assuming punish_sound will be made as pyo.TableRead
-                pundur = (punish_sound.table.length)*1000
-                waitdur = duration-pundur
-                punish_sound()
-            else:
-                pass
-            ## TODO implement the waitdur
-
-    def run(self):
-        #first setup a TCP/IP interrupt to listen for
-        #something like state_switch = statemat.phase(argin)
-        #the statemat will run all the pin switches, we return here to save data & check in w/ the terminal
-        #interrupts in the lower level function should call up here with a basic 2 field event ind:
-            #timestamp:event
-        #Then each protocol should have a dict that translates that back into human readable trial recs.
-        if self.protocol_ready == 0:
-            self.prepare_trials()
-
+        return trigger
 
     def terminal_interpreter(self):
         #an arg in needs to be the command sent by the network

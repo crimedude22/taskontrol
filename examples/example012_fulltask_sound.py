@@ -228,7 +228,7 @@ class Paradigm(templates.Paradigm2AFC):
 
         # -- Connect to sound server and define sounds --
         print 'Conecting to soundserver...'
-        print '***** FIXME: HARDCODED TIME DELAY TO WAIT FOR SERIAL PORT! *****' ### DEBUG
+        print '***** XFIXME: HARDCODED TIME DELAY TO WAIT FOR SERIAL PORT! *****' ### DEBUG
         time.sleep(0.2)
         self.soundClient = soundclient.SoundClient()
         '''
@@ -261,7 +261,7 @@ class Paradigm(templates.Paradigm2AFC):
                 
         spkCal = speakercalibration.Calibration(rigsettings.SPEAKER_CALIBRATION)
 
-        # FIXME: currently I am averaging calibration from both speakers (not good)
+        # XFIXME: currently I am averaging calibration from both speakers (not good)
         targetAmp = spkCal.find_amplitude(targetFrequency,targetIntensity).mean()
         self.params['targetAmplitude'].set_value(targetAmp)
 
@@ -562,7 +562,7 @@ class Paradigm(templates.Paradigm2AFC):
 
         # -- Find beginning of trial --
         startTrialStateID = self.sm.statesNameToIndex['startTrial']
-        # FIXME: Next line seems inefficient. Is there a better way?
+        # XFIXME: Next line seems inefficient. Is there a better way?
         startTrialInd = np.flatnonzero(statesThisTrial==startTrialStateID)[0]
         self.results['timeTrialStart'][trialIndex] = eventsThisTrial[startTrialInd,0]
         #print 'TrialStart : {0}'.format(self.results['timeTrialStart'][trialIndex]) ### DEBUG

@@ -59,7 +59,7 @@ class Dispatcher(QtCore.QObject):
     # -- Create signals (they need to be before constructor) --
     timerTic = QtCore.Signal(float,int,int,int)
     prepareNextTrial = QtCore.Signal(int)
-    startNewTrial = QtCore.Signal(int) ### FIXME: is this really necessary?
+    startNewTrial = QtCore.Signal(int) ### XXFIXME: is this really necessary?
     logMessage = QtCore.Signal(str)
 
     def __init__(self, parent=None,serverType='dummy', connectnow=True, interval=0.3,
@@ -184,7 +184,7 @@ class Dispatcher(QtCore.QObject):
         self.currentTrial += 1
         self.statemachine.force_state(1)
         self.preparingNextTrial = False
-        ### self.startNewTrial.emit(self.currentTrial) # FIXME: is this really necessary?
+        ### self.startNewTrial.emit(self.currentTrial) # XXFIXME: is this really necessary?
 
     def timeout(self):
         ###print '************************ TIMEOUT *********************'
@@ -200,12 +200,12 @@ class Dispatcher(QtCore.QObject):
             self.preparingNextTrial = True
             self.update_trial_borders()
             self.prepareNextTrial.emit(self.currentTrial+1)
-        # FIXME: Should I stop the clock/timeouts here? until everything is processed?
-        # FIXME: fix what to do for other preparation states
+        # XXFIXME: Should I stop the clock/timeouts here? until everything is processed?
+        # XXFIXME: fix what to do for other preparation states
         '''
         if self.currentState and not self.preparingNextTrial) or \
                 (len(self.lastEvents)>0 and not self.preparingNextTrial:
-            laststates = self.lastEvents[:,2] # FIXME: is that 3 or 2?
+            laststates = self.lastEvents[:,2] # XFIXME: is that 3 or 2?
             for state in self.prepareNextTrialStates:
                 if state in laststates:
                     self.preparingNextTrial = True
@@ -259,14 +259,14 @@ class Dispatcher(QtCore.QObject):
                 self.eventsMat.extend(self.lastEvents)
                 self.currentState = self.eventsMat[-1][2]
                 self.eventCount = len(self.eventsMat)
-                # FIXME: this may fail if eventsMat is empty on the first call
+                # XXFIXME: this may fail if eventsMat is empty on the first call
                 ### print self.eventsMat ### DEBUG
 
     def update_trial_borders(self):
         '''Find last index of last trial.
         It looks for state zero, which corresponds to the last state no each trial.
         The first event of all is also state zero, but this one is ignored.'''
-        # FIXME: slow way to find end of trial
+        # XXFIXME: slow way to find end of trial
         if self.currentTrial>=0: # & self.eventCount>0:
             for inde in xrange(self.eventCount-1,-1,-1): # This will count from n to 0
                 #if self.eventsMat[inde][2] in self.prepareNextTrialStates:
@@ -275,7 +275,7 @@ class Dispatcher(QtCore.QObject):
                     break
         # WARNING: make sure this method is not called before the events
         #          at the end of the trials are sent to the client/dispatcher
-        # FIXME: this function has not been tested with more than one state
+        # XXFIXME: this function has not been tested with more than one state
         #        in prepareNextTrialStates.
 
     def events_one_trial(self,trialID):
@@ -291,7 +291,7 @@ class Dispatcher(QtCore.QObject):
         # -- Do not include the state 0 at the beginning of the trial --
         eventsThisTrial = self.eventsMat[indPrev+1:indLast+1] # eventsMat is a list
         return np.array(eventsThisTrial)
-        ####### FIXME: this seems inefficient because eventsMat is an array and we
+        ####### XXFIXME: this seems inefficient because eventsMat is an array and we
         #######        need only a set of trials. Do we need to convert the whole thing?
 
 
@@ -309,7 +309,7 @@ class Dispatcher(QtCore.QObject):
         eventsGroup.create_dataset('indexLastEventEachTrial', dtype=int,
                                    data=np.array(self.indexLastEventEachTrial))
 
-        ###### FIXME: what happens (on trial 1) when indexLastEventEachTrial is empty? #####
+        ###### XXFIXME: what happens (on trial 1) when indexLastEventEachTrial is empty? #####
 
 
         #rawEventsColumnsLabels = ['eventTime','eventCode','nextState']
@@ -324,7 +324,7 @@ class Dispatcher(QtCore.QObject):
         '''Make sure timer stops when user closes the dispatcher.'''
         self.pause()
         if self.isConnected:
-            # FIXME: set all outputs to zero
+            # XXFIXME: set all outputs to zero
             #self.statemachine.bypassDout(0)
             self.statemachine.force_state(0)
             self.statemachine.close()
@@ -389,7 +389,7 @@ class DispatcherGUI(QtGui.QGroupBox):
             model.timerTic.connect(self.update)
         self.stop()
 
-    #@QtCore.Slot(float,int,int,int)  # FIXME: is this really needed?
+    #@QtCore.Slot(float,int,int,int)  # XXFIXME: is this really needed?
     def update(self,serverTime,currentState,eventCount,currentTrial):
         '''Update display of time and events.'''
         self.timeLabel.setText(self._timeFormat.format(serverTime))
@@ -488,7 +488,7 @@ if __name__ == "__main__":
     form.show()
     app.exec_()
     
-    # FIXME: maybe this way is better
+    # XFIXME: maybe this way is better
     #sys.exit(app.exec_())
 '''
 

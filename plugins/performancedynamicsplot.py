@@ -33,7 +33,7 @@ class PerformanceDynamicsPlot(pg.PlotWidget):
 
         if parent is not None:
             set_pg_colors(parent)
-            #FIXME: when done this way, x-axis starts at -40, not 0
+            #XFIXME: when done this way, x-axis starts at -40, not 0
         super(PerformanceDynamicsPlot, self).__init__(parent)
 
         self.initialSize = widgetSize
@@ -58,7 +58,7 @@ class PerformanceDynamicsPlot(pg.PlotWidget):
 
         self.outcomeIDs = {'correct':1,'error':0,'invalid':2,'free':3,
                            'nochoice':4,'aftererror':5,'aborted':6} 
-        # FIXME: This should come from somewhere else (to be consisten with the rest)
+        # XFIXME: This should come from somewhere else (to be consisten with the rest)
 
         # -- Graphical adjustments --
         yAxis = self.getAxis('left')
@@ -88,7 +88,7 @@ class PerformanceDynamicsPlot(pg.PlotWidget):
     def update(self,sides=[],sidesLabels={},outcome=[],outcomeLabels={},currentTrial=0):
         xd = np.tile(range(self.nTrialsToPlot),3)
         validLabels = [outcomeLabels['correct'],outcomeLabels['error']]
-        # FIXME: this should ask if outcome in [someset] (using ismember)
+        # XFIXME: this should ask if outcome in [someset] (using ismember)
         validTrials = np.zeros(currentTrial,dtype=bool)
         for oneValidLabel in validLabels:
             validTrials[outcome[:currentTrial]==oneValidLabel] = True
@@ -99,7 +99,7 @@ class PerformanceDynamicsPlot(pg.PlotWidget):
         nValid = np.sum(validTrials) #Maybe just add one every this is called
         #nValidLeft = np.sum(validLeft) #Maybe just add one every this is called
         correct = outcome==self.outcomeIDs['correct'] # SIZE:nTrials
-        # FIXME: the following should not be hardcoded but use sidesLabels
+        # XFIXME: the following should not be hardcoded but use sidesLabels
         #leftCorrect = ((sides==0) & correct)[:currentTrial][validTrials]
         #rightCorrect = ((sides==1) & correct)[:currentTrial][validTrials]
         validCorrect = correct[validTrials] # SIZE:nValid
@@ -185,7 +185,7 @@ if __name__ == "__main__":
     #outcome = np.array([0,0,0,1,1,0,1,1,1,1])
     for currentTrial in range(16):
         splot.update(sides,{'left':0,'right':1},outcome,{'error':0,'correct':1},currentTrial=currentTrial)
-    # FIXME: add outcomeLabels to update()
+    # XFIXME: add outcomeLabels to update()
 
     layoutMain = QtGui.QHBoxLayout()
     layoutMain.addWidget(splot)

@@ -177,7 +177,7 @@ class Protocol(QtGui.QMainWindow):
     def storeTrialParameters(self):
         currentTrial = protocol.dispatcher.currentTrial
         self.params.updateHistory()
-        # FIXME: I'm afraid it could happen that the trial number and
+        # XFIXME: I'm afraid it could happen that the trial number and
         # the size of history get out of sync.
         # Maybe updateHistory() should require a trial number and verify
         #except ValueError:print 'paramsHistory length and current trial do not match.'
@@ -198,7 +198,7 @@ class Protocol(QtGui.QMainWindow):
 
 
     def startNewTrial(self, currentTrial):
-        # FIXME: currentTrial is sent by signal here, but can also be
+        # XFIXME: currentTrial is sent by signal here, but can also be
         # accessed from protocol.dispatcher.currentTrial
         print 'Started trial %d'%currentTrial
 
@@ -206,9 +206,9 @@ class Protocol(QtGui.QMainWindow):
     def timerTic(self,etime,lastEvents):
         #timesAndStates = lastEvents[:,[2,3]]
         #timesAndStates[:,0] -= etime
-        # FIXME: I should not access attribute of dispatcher directly
+        # XFIXME: I should not access attribute of dispatcher directly
         timesAndStates = self.dispatcher.eventsMat[:,[2,3]]
-        # FIXME: next line maybe the first place where a copy is made:
+        # XFIXME: next line maybe the first place where a copy is made:
         # It's either inefficient to copy all states, or I'm modifying
         # the original eventsMat which is BAD!
         #timesAndStates[:,0] -= etime
@@ -219,7 +219,7 @@ class Protocol(QtGui.QMainWindow):
 
     def closeEvent(self, event):
         '''Make sure dispatcher stops and closes when closing window.'''
-        # FIXME: this feel recursive, I thought the event would come back
+        # XFIXME: this feel recursive, I thought the event would come back
         #        to the parent of dispatcher
         self.dispatcher.die()
         event.accept()

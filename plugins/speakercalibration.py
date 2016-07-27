@@ -197,7 +197,7 @@ class LoadButton(QtGui.QPushButton):
         self.calData = Calibration(fname)
         self.update_values()
     def update_values(self):
-        nChannels = 2 # FIXME: hardcoded
+        nChannels = 2 # XFIXME: hardcoded
         for indch in range(nChannels):
             for indf in range(len(self.soundControlArray[indch].outputButtons)):
                 oneOutputButton = self.soundControlArray[indch].outputButtons[indf]
@@ -272,22 +272,22 @@ class SaveButton(QtGui.QPushButton):
         ###print amplitudeData ###DEBUG
 
         # -- Create data file --
-        # FIXME: check that the file opened correctly
+        # XFIXME: check that the file opened correctly
         if os.path.exists(fname):
             self.logMessage.emit('File exists. I will rewrite {0}'.format(fname))
         h5file = h5py.File(fname,'w')
 
         try:
             dsetAmp = h5file.create_dataset('amplitude',data=amplitudeData)
-            dsetAmp.attrs['Channels'] = 'left,right' # FIXME: hardcoded
-            dsetAmp.attrs['Units'] = '(none)' # FIXME: hardcoded
+            dsetAmp.attrs['Channels'] = 'left,right' # XFIXME: hardcoded
+            dsetAmp.attrs['Units'] = '(none)' # XFIXME: hardcoded
             dsetFreq = h5file.create_dataset('frequency',data=SOUND_FREQUENCIES)
-            dsetFreq.attrs['Units'] = 'Hz' # FIXME: hardcoded
+            dsetFreq.attrs['Units'] = 'Hz' # XFIXME: hardcoded
             dsetRef = h5file.create_dataset('intensity',data=DEFAULT_INTENSITY)
-            dsetRef.attrs['Units'] = 'dB-SPL' # FIXME: hardcoded
+            dsetRef.attrs['Units'] = 'dB-SPL' # XFIXME: hardcoded
             dsetRef = h5file.create_dataset('computerSoundLevel',
                                             data=rigsettings.SOUND_VOLUME_LEVEL)
-            dsetRef.attrs['Units'] = '%' # FIXME: hardcoded
+            dsetRef.attrs['Units'] = '%' # XFIXME: hardcoded
         except UserWarning as uwarn:
             self.logMessage.emit(uwarn.message)
             print uwarn.message

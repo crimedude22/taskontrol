@@ -8,7 +8,7 @@ Remember: have to put class name in __init__ file to import directly.
 Stage functions should each return three dicts: data, triggers, and timers
     -data: (field:value) all the relevant data for the stage, as named in the DATA_LIST
     -triggers: (input:action) what to do if the relevant input is triggered
-    -timers: (length(ms):action) input-free timers (input dependent timers like too-early timers should be triggers).
+    -timers: (type:{params}) like {'too_early':{'sound':too_early_sound}}
 '''
 
 import random
@@ -16,6 +16,7 @@ from taskontrol.settings import rpisettings as rpiset
 import datetime
 import itertools
 import warnings
+import h5py
 
 TASK = 'Nafc'
 
@@ -26,10 +27,11 @@ class Nafc:
     """
 
     # Class attributes
-    PARAM_LIST = ['sounds', 'reward', 'punish', 'pct_correction', 'bias_mode']
-    DATA_LIST = ['trial_num','target','target_sound_id', 'response', 'correct', 'bias', 'RQtimestamp','DCtimestamp','RWtimestamp']
+    # for numpy data types see http://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html#arrays-dtypes-constructing
+    PARAM_LIST = ['sounds', 'reward', 'punish', 'pct_correction', 'bias_mode', 'timeout']
+    DATA_LIST = {'trial_num':'i32','target':'S1','target_sound_id':h5py.special_dtype(vlen=str), 'response':'S1', 'correct':'i8', 'bias':'f', 'RQtimestamp':'S26','DCtimestamp':'S26'}
 
-    def __init__(self, soundict, reward=50, punish=2000, pct_correction=.5, bias_mode=1, assisted_assign=0):
+    def __init__(self, soundict, reward=50, punish=2000, pct_correction=.5, bias_mode=1, timeout=30000, assisted_assign=0):
         # Sounds come in two flavors
         #   soundict: a dict of parameters like:
         #       {'L': 'path/to/file.wav', 'R': 'etc'} or
@@ -60,7 +62,8 @@ class Nafc:
         self.punish = punish
         self.pct_correction = pct_correction
         self.bias_mode = bias_mode
-        self.stage_names = ["request","discrim"]
+        self.stage_names = ["request","discrim","reinforcement"]
+        self.timeout = timeout
 
         # Variable Parameters
         self.target = None
@@ -90,6 +93,8 @@ class Nafc:
 
         if not self.sounds:
             raise RuntimeError('\nSound objects have not been passed! Make sure RPilot makes sounds from the soundict before running.')
+        if 'punish' not in self.sounds.keys():
+            warnings.warn('No Punishment Sound defined.')
 
         # Set bias threshold
         if self.bias_mode == 0:
@@ -148,13 +153,14 @@ class Nafc:
                 self.distractor:{'punish':{'duration':self.punish,'punish_sound':self.sounds['punish'].out}}
             }
         except KeyError:
+            # If we get a KeyError it's probably because we don't have a punish_sound
             triggers = {
                 self.target:{'reward':self.reward},
                 self.distractor:{'punish':self.punish,'punish_sound':None}
             }
 
         timers = {
-            '10000':self.reset_stages
+            'timeout':{'duration':self.timeout,'action':self.reset_stages}
         }
 
         return data,triggers,timers
@@ -184,7 +190,13 @@ class Nafc:
             'correct':self.correct,
             'bias':self.bias
         }
-        return data
+        triggers = {
+            'task_end':None
+        }
+        timers = {
+            'immediate':None # Immediately calls the next stage because no triggers here.
+        }
+        return data, triggers, timers
         # Also calc ongoing vals. like bias.
 
     def reset_stages(self):

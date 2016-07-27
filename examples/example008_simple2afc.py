@@ -229,7 +229,7 @@ class Paradigm(QtGui.QMainWindow):
         self.dispatcherModel.set_state_matrix(self.sm)
         
         '''
-         # FIXME: Will this change from trial to trial? maybe not.
+         # XFIXME: Will this change from trial to trial? maybe not.
         prepareNextTrialStates = self.sm.get_ready_states()
         self.dispatcherModel.set_prepare_next_trial_states(prepareNextTrialStates,
                                                   self.sm.get_states_dict())
@@ -275,7 +275,7 @@ class Paradigm(QtGui.QMainWindow):
         self.results['timeTrialStart'][trialIndex] = eventsThisTrial[startTrialInd,0]
 
         # -- Find valid center-port-in time --
-        # FIXME: be wiser when calculating the times (first may not be the right one)
+        # XFIXME: be wiser when calculating the times (first may not be the right one)
         waitForCpokeStateID = self.sm.statesNameToIndex['wait_for_cpoke']
         playStimulusStateID = self.sm.statesNameToIndex['play_stimulus']
         centerInInds = utils.find_transition(eventsThisTrial[:,2],

@@ -94,7 +94,7 @@ class EmulatorGUI(QtGui.QWidget):
             stylestrWater = ''
         self.water[waterID].setStyleSheet(stylestrWater)
     def set_one_output(self,outputID,value):
-        # FIXME: this should be written more clearly (with less hardcoded assumptions)
+        # XFIXME: this should be written more clearly (with less hardcoded assumptions)
         if outputID=='':
             pass
         elif outputID==1:
@@ -193,7 +193,7 @@ class StateMachineClient(QtCore.QObject):
         pass
     def force_output(self,output,value):
         self.outputs[output] = value
-        # FIXME: do the following with signals and slots
+        # XFIXME: do the following with signals and slots
         if value in [0,1]:
             self.emuGUI.set_one_output(output,value)
         print 'EMULATOR: Force output {0} to {1}'.format(output,value)
@@ -252,7 +252,7 @@ class StateMachineClient(QtCore.QObject):
         return self.currentState
         pass
     def force_state(self,stateID):
-        ## FIXME: In this function, the way nextState is updated is weird (in arduino)
+        ## XFIXME: In this function, the way nextState is updated is weird (in arduino)
         #  maybe it should be closer to add_event
         self.eventsTime[self.nEvents] = self.get_time()
         self.currentState = stateID
@@ -296,11 +296,11 @@ class StateMachineClient(QtCore.QObject):
             self.stateTimerValue = currentTime # Restart timer
             pass
 
-        # TODO: extratimers
+        # XTODO: extratimers
         ###
             
         # -- Update state machine given last events --
-        # FIXME: this is ugly (in the arduino code).
+        # XFIXME: this is ugly (in the arduino code).
         #        update_state_machine sneakily changes a value (currentState)
         previousState = self.currentState
         self.update_state_machine()
@@ -311,7 +311,7 @@ class StateMachineClient(QtCore.QObject):
 
     def enter_state(self,currentState):
         self.stateTimerValue = self.get_time()
-        # TODO: Finish extra timers
+        # XTODO: Finish extra timers
         #for indt in range(self.nExtraTimers)
         self.outputs = self.stateOutputs[currentState,:]
         self.emuGUI.set_outputs(self.outputs)

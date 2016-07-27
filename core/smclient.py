@@ -91,7 +91,7 @@ class StateMachineClient(object):
         '''Old function necessary for Maple. Obsolete for Arduino'''
         pass
     def connect(self):
-        ###self.ser.flushInput()  # FIXME: Why would I need this?
+        ###self.ser.flushInput()  # XXFIXME: Why would I need this?
         portReady = False
         fsmReady = False
         while not portReady:  #os.path.exists(self.port):
@@ -103,9 +103,9 @@ class StateMachineClient(object):
                 print 'Waiting for Arduino to be ready...'
                 time.sleep(1)
         self.ser.setTimeout(1)
-        #self.ser.flushOutput()  # FIXME: Discard anything in output buffer?
-        #self.ser.flushInput()   # FIXME: Discard anything in input buffer?
-        time.sleep(0.2)  # FIXME: why does it need extra time? 0.1 does not work!
+        #self.ser.flushOutput()  # XXFIXME: Discard anything in output buffer?
+        #self.ser.flushInput()   # XXFIXME: Discard anything in input buffer?
+        time.sleep(0.2)  # XXFIXME: why does it need extra time? 0.1 does not work!
         self.ser.write(opcode['CONNECT'])
         while not fsmReady:
             print 'Establishing connection...'
@@ -153,7 +153,7 @@ class StateMachineClient(object):
         self.ser.flushInput()  ## WHY
         self.ser.write(opcode['GET_INPUTS'])
         #inputValues = self.ser.readlines()
-        # FIXME: verify that the number of inputs from server matches client
+        # XXFIXME: verify that the number of inputs from server matches client
         nInputs = ord(self.ser.read(1))
         inputValuesChr = self.ser.read(nInputs)
         inputValues = [ord(x) for x in inputValuesChr]
@@ -197,7 +197,7 @@ class StateMachineClient(object):
         Values should be in seconds.
         '''
         self.ser.write(opcode['SET_STATE_TIMERS'])
-        # FIXME: test if the value is too large
+        # XXFIXME: test if the value is too large
         for oneval in timerValues:
             if oneval<0:
                 raise ValueError('Value of timers should be positive.')
@@ -214,7 +214,7 @@ class StateMachineClient(object):
         Send the values for each extra timer. Values should be in seconds.
         '''
         self.ser.write(opcode['SET_EXTRA_TIMERS'])
-        # FIXME: test if the value is too large
+        # XXFIXME: test if the value is too large
         for oneval in extraTimersValues:
             if oneval<0:
                 raise ValueError('Value of timers should be positive.')
@@ -262,7 +262,7 @@ class StateMachineClient(object):
             eventsList.append(self.ser.readline())
         return eventsList
     def get_events(self):
-        # FIXME: translation of the events strings to a matrix may be slow
+        # XXFIXME: translation of the events strings to a matrix may be slow
         #        it needs to be tested carefully.
         eventsList = self.get_events_raw_strings()
         eventsMat = []
@@ -295,7 +295,7 @@ class StateMachineClient(object):
         #print ''.join(oneline)
         print oneline
     def error_check(self):
-        # FIXME: is this implemented correctly? It has not been tested
+        # XXFIXME: is this implemented correctly? It has not been tested
         status = self.ser.read()
         if status==opcode['ERROR']:
             therest = self.ser.readline()
@@ -356,7 +356,7 @@ if __name__ == "__main__":
         #stateMatrix.append([ 2 , 0 ])
         #stateMatrix.append([ 0 , 1 ])
 
-        # FIXME: there is a limit on the size of the matrix
+        # XXFIXME: there is a limit on the size of the matrix
         #        one due to the number of rows or cols (has to be <128)
         #        another probably due to the serial buffer size
         # On what platform was this problem seen? maple or arduino due?

@@ -207,8 +207,8 @@ There are two types of timers:
   final state has been reached, and the server needs to receive the code
   that starts the new trial.
 
-- FIXME:  Inputs are detected by external interrupts.
-- FIXME: A timer for each state is implemented with a hardware timer and interrupt.
+- XXFIXME:  Inputs are detected by external interrupts.
+- XXFIXME: A timer for each state is implemented with a hardware timer and interrupt.
 
 === LIMITS (to improve) ===
 - nEvents is limited at 256 by the way it is sent in GET_EVENTS

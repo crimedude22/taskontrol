@@ -43,7 +43,7 @@ from taskontrol.core import utils
 __version__ = '0.3'
 __author__ = 'Santiago Jaramillo <sjara@uoregon.edu>'
 
-# FIXME: what should be the Statetimer period?
+# XFIXME: what should be the Statetimer period?
 VERYLONGTIME  = 100    # Time period to stay in a state if nothing happens
 #VERYSHORTTIME = 0.0001 # Time period before jumping to next state "immediately" OBSOLETE, use 0.
 SAMEOUTPUT = 7
@@ -60,7 +60,7 @@ class StateMatrix(object):
     Where the first six are for center, left and right ports, and the
     next column for the state timer.
     
-    FIXME: only one 'readystate' can be specified. It should accept many.
+    XFIXME: only one 'readystate' can be specified. It should accept many.
     '''
     def __init__(self,inputs={},outputs={},readystate='readyForNextTrial'):
         '''
@@ -198,7 +198,7 @@ class StateMatrix(object):
             newRow[self.eventsDict[eventName]] = targetStateInd
 
         # -- Add row to state transition matrix --
-        # FIXME: this way to do it seems very inefficient
+        # XFIXME: this way to do it seems very inefficient
         while len(self.stateMatrix)<(thisStateInd+1):
             self.stateMatrix.append([])
             self.stateTimers.append([])
@@ -276,7 +276,7 @@ class StateMatrix(object):
         extra timers.
         OBSOLETE: see instead code in add_extratimer
         '''
-        # FIXME: the length of extraTimersNameToIndex may differ from swID+1 ???
+        # XFIXME: the length of extraTimersNameToIndex may differ from swID+1 ???
         extraTimerEventCol = self.nInputEvents + len(self.extraTimersNameToIndex)
         self.eventsDict['%s_Up'%name] = extraTimerEventCol
         
@@ -319,7 +319,7 @@ class StateMatrix(object):
         return self.stateTimers
 
     def get_sched_waves(self):
-        # FIXME: check if there are orphan SW
+        # XFIXME: check if there are orphan SW
         return self.extraTimersMat
 
 

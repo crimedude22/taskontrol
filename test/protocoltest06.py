@@ -161,9 +161,9 @@ class Protocol(QtGui.QDialog):
     def timerTic(self,etime,lastEvents):
         #timesAndStates = lastEvents[:,[2,3]]
         #timesAndStates[:,0] -= etime
-        # FIXME: I should not access attribute of dispatcher directly
+        # XFIXME: I should not access attribute of dispatcher directly
         timesAndStates = self.dispatcher.eventsMat[:,[2,3]]
-        # FIXME: next line maybe the first place where a copy is made:
+        # XFIXME: next line maybe the first place where a copy is made:
         # It's either inefficient to copy all states, or I'm modifying
         # the original eventsMat which is BAD!
         #timesAndStates[:,0] -= etime
@@ -174,7 +174,7 @@ class Protocol(QtGui.QDialog):
 
     def closeEvent(self, event):
         '''Make sure dispatcher stops and closes when closing window.'''
-        # FIXME: this feel recursive, I thought the event would come back
+        # XFIXME: this feel recursive, I thought the event would come back
         #        to the parent of dispatcher
         self.dispatcher.die()
         event.accept()

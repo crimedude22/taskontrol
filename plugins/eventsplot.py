@@ -88,14 +88,14 @@ class EventsPlot(pg.PlotWidget):
         earliestTime = etime-axLims[2]  #self.xLims[1]
         eventsToInclude = timesAndStates[:,0]>=earliestTime
         if sum(eventsToInclude)>0:
-            # FIXME: Ugly way of adding an extra state (with onset outside range)
+            # XFIXME: Ugly way of adding an extra state (with onset outside range)
             eventsToInclude = np.r_[eventsToInclude[1:],eventsToInclude[0]] | eventsToInclude
             self._lastStatesOnset = etime - timesAndStates[eventsToInclude,0]
             self._lastStatesOnset[0] = self.xLims[1]
             self._lastStatesOffset = np.r_[self._lastStatesOnset[1:],0]
             lastStates = timesAndStates[eventsToInclude,1].astype('int')
             #self._lastStatesColor = self.statesColor[lastStates]
-            # FIXME: there must be a better way!
+            # XFIXME: there must be a better way!
             self._lastStatesColor = [self.statesColor[s] for s in lastStates]
         # -- Plot states --
         self.clear()

@@ -9,6 +9,7 @@ from taskontrol.settings import rpisettings as rpiset
 from taskontrol import templates
 import os
 import h5py
+import tables
 import datetime
 from importlib import import_module
 import json
@@ -22,68 +23,68 @@ class Mouse:
     def __init__(self, name, new=0):
         self.name = str(name)
         if new or not os.path.isfile(rpiset.PI_DATA_DIR + self.name + '.hdf5'):
+            print("\nNo file detected or flagged as new.")
             self.new_mouse(name)
             return
 
-        self.h5f = h5py.File(rpiset.PI_DATA_DIR + self.name + '.hdf5', 'r+')
-        self.h5f.swmr_mode = True # Allows terminal to read while we write
-        # TODO Remember to have terminal open the h5 file with swmr=True
-        self.h5info = self.h5f['info']
-        self.h5data = self.h5f['data']
+        self.h5f    = tables.open_file(rpiset.PI_DATA_DIR + self.name + '.hdf5', 'r+')
+        # TODO figure out pytables swmr mode
+        self.h5info = self.h5f.root.info.info # double because info is a group and a table
+        self.h5data = self.h5f.root.data
 
         # Get mouse attributes from hdf5 file
-        self.__dict__.update(dict(self.h5f["info"].attrs.items()))
+        self.info = dict()
+        for k in self.h5info.colnames:
+            # for all the fields in info, get those fields
+            self.info[k] = self.h5info.read(field=k)[0]
 
         # Load Task if Exists
         # TODO make this more robust for multiple tasks - saving position, etc.
         self.task = None
-        if self.h5data.keys():
-            last_assigned_task = self.h5data.keys()[-1]
-            self.h5trial_records = self.h5data[last_assigned_task]
-            self.task_type = self.h5trial_records.attrs['task_type']
-
-            param_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if key.startswith("PARAM_"))
-            data_dict = dict((key,value) for key,value in self.h5trial_records.attrs.iteritems() if key.startswith("DATA_"))
-            self.task_params = expand_dict(param_dict)
-            self.task_data = data_dict
-
-            # Params can be described with a string for a template parameter set, load it if it was
-            if 'param_template' in self.h5trial_records.attrs.keys():
-                self.param_template = self.h5trial_records.attrs['param_template']
-                self.task_params = self.param_template
-
-            self.load_protocol(self.task_type,self.task_params)
+        if self.h5data._v_children.keys():
+            self.load_protocol()
 
     def new_mouse(self,name):
-        try:
-            self.h5f = h5py.File(rpiset.PI_DATA_DIR + self.name + '.hdf5', 'w-')
-        except:
-            print("Mouse already has a file.")
+        if os.path.isfile(rpiset.PI_DATA_DIR + self.name + '.hdf5'):
+            overw = str(raw_input("\nMouse already has file, overwrite and make new file? (y/n)\n   >>"))
+            if overw == 'y':
+                self.h5f = tables.open_file(rpiset.PI_DATA_DIR + self.name + '.hdf5', mode='w')
+            elif overw == 'n':
+                self.h5f = tables.open_file(rpiset.PI_DATA_DIR + self.name + '.hdf5', mode='a')
+                return
+            else:
+                return
+        else:
+            print("\nNo file found, making a new file.")
+            self.h5f = tables.open_file(rpiset.PI_DATA_DIR + self.name + '.hdf5', mode='w')
             # TODO ask if user wants to redefine all params or just set new protocol.
-            return
 
+        # TODO when terminal built, have terminal stash what types of biographical information we want/allow new fields to be defined.
         # Basic info about the mouse
-        self.startdate = datetime.date.today().isoformat()
+        self.info               = dict()
+        self.info['name']       = self.name
+        self.info['start_date'] = datetime.date.today().isoformat()
 
         try:
-            self.baseline_mass = float(raw_input("\nWhat is {}'s baseline mass?\n    >".format(self.name)))
-            self.minimum_mass = float(raw_input("\nAnd what is {}'s minimum mass? (eg. 80% of baseline?)\n    >".format(self.name)))
-            self.box = int(raw_input("\nWhat box will {} be run in?\n    >".format(self.name)))
+            self.info['baseline_mass'] = float(raw_input("\nWhat is {}'s baseline mass?\n    >".format(self.name)))
+            self.info['minimum_mass']  = float(raw_input("\nAnd what is {}'s minimum mass? (eg. 80% of baseline?)\n    >".format(self.name)))
+            self.info['box']           = int(raw_input("\nWhat box will {} be run in?\n    >".format(self.name)))
         except ValueError:
             print "\nNumber must be convertible to a float, input only numbers in decimal format like 12.3.\nTrying again..."
-            self.baseline_mass = float(raw_input("\nWhat is {}'s baseline mass?\n    >".format(self.name)))
-            self.minimum_mass = float(raw_input("\nAnd what is {}'s minimum mass? (eg. 80% of baseline?)\n    >".format(self.name)))
-            self.box = int(raw_input("\nWhat box will {} be run in?\n    >".format(self.name)))
+            self.info['baseline_mass'] = float(raw_input("\nWhat is {}'s baseline mass?\n    >".format(self.name)))
+            self.info['minimum_mass']  = float(raw_input("\nAnd what is {}'s minimum mass? (eg. 80% of baseline?)\n    >".format(self.name)))
+            self.info['box']           = int(raw_input("\nWhat box will {} be run in?\n    >".format(self.name)))
 
-        # Make and Save info to hdf5
-        self.h5info = self.h5f.create_group("info")
-        self.h5data = self.h5f.create_group("data")
+        # Make hdf5 structure and Save info to hdf5
+        self.h5info = self.h5f.create_group("/","info","biographical information")
+        self.h5data = self.h5f.create_group("/","data","trial record data")
+        self.h5info.info_table = self.h5f.create_table(self.h5info, 'info',Biography, "A mouse's biographical information table")
+        for k,v in self.info.items():
+            self.h5info.info_table.row[k] = v
+        self.h5info.info_table.row.append()
+        self.h5info.info_table.flush()
 
-        self.h5info.attrs["name"] = self.name
-        self.h5info.attrs["startdate"] = self.startdate
-        self.h5info.attrs["baseline_mass"] = self.baseline_mass
-        self.h5info.attrs["minimum_mass"] = self.minimum_mass
-        self.h5info.attrs["box"] = self.box
+        # TODO make "schedule" table that lists which trial #s were done when, which steps, etc.
 
         self.h5f.flush()
 
@@ -98,85 +99,94 @@ class Mouse:
         template_module = import_module('taskontrol.templates.{}'.format(protocol))
         task_class = getattr(template_module,template_module.TASK)
 
-        self.task_data = task_class.DATA_LIST
-        if 'trial_num' not in self.task_data.keys():
+        self.task_data_list = task_class.DATA_LIST
+        self.task_data_class = task_class.DataTypes
+        if 'trial_num' not in self.task_data_list.keys():
             warnings.warn('You didn\'t declare you wanted trial numbers saved. Inserted, but go back and check your task class')
-            self.task_data.update({'trial_num':'i32'})
+            self.task_data_list.update({'trial_num':'i32'})
+            self.task_data_class.trial_num = tables.Int32Col()
 
         # Check if params are a dict of params or a string referring to a premade parameter set
         if isinstance(params, basestring):
-            template_params = getattr(template_module, params)
-            self.task = task_class(**template_params)
+            self.param_template = params
+            self.task_params = getattr(template_module, params)
+            self.task = task_class(**self.task_params)
         elif isinstance(params, dict):
-            self.task = task_class(**params)
+            self.param_template = False
+            self.task = task_class(**self.task_params)
         else:
             raise TypeError('Not sure what to do with your Params, need dict or string reference to parameter set in template')
 
         # Make dataset in the hdf5 file to store trial records. When protocols are multiple steps, this will be multiple datasets
-        # dtype arg - We have to specifically declare the type of data we are storing since we are likely to have multiple types
-            # We do so with a list of tuples, gotten by calling .items() on the DATA_LIST dict
-            # See http://docs.h5py.org/en/latest/whatsnew/2.2.html#field-indexing-is-now-allowed-when-writing-to-a-dataset-issue-42
-        # The dataset is of shape ntrials x 1 because each row is a set of tuples, as specified by the dtype argument.
+        # dtask_data_class arg - We have to specifically declare the type of data we are storing since we are likely to have multiple types
+            # We do so with a subclass of the task class of type tables.IsDescription.
+            # See http://www.pytables.org/usersguide/tutorials.html
+        if 'step_num' and 'protocol_type' in self.task_params.keys():
+            self.h5trial_records = self.h5f.create_table(self.h5data,
+                                                         self.task_params['protocol_type'] + '_' + self.params['step_num'],
+                                                         self.task_data_class,
+                                                         expectedrows=50000)
+        elif 'description' in self.task_params.keys():
+            self.h5trial_records = self.h5f.create_table(self.h5data,
+                                                         self.task_params['description'],
+                                                         self.task_data_class,
+                                                         expectedrows=50000)
+        else:
+            self.h5trial_records = self.h5f.create_table(self.h5data,
+                                                         'task_' + str(len(self.h5data._v_children.keys()) + 1),
+                                                         self.task_data_class, expectedrows=50000)
 
-        self.h5trial_records = self.h5data.create_dataset("trial_records",(10000,1),maxshape=(None,1),dtype=np.dtype(self.task_data.items()))
-        self.h5trial_records.attrs['task_type'] = protocol
-        self.h5trial_records.attrs.update(flatten_dict(self.task_data,'DATA_'))
-        if isinstance(params,basestring):
-            self.h5trial_records.attrs['param_template'] = params
-            self.h5trial_records.attrs.update(flatten_dict(template_params,'PARAM_'))
-        elif isinstance(params, dict):
-            self.h5trial_records.attrs.update(flatten_dict(params,'PARAM_'))
+        # Save task parameters as table attributes
+        self.h5trial_records.attrs.task_type      = self.task_type
+        self.h5trial_records.attrs.date_assigned  = datetime.date.today().isoformat()
+        self.h5trial_records.attrs.params         = self.task_params
+        self.h5trial_records.attrs.data_list      = self.task_data_list
+        self.h5trial_records.attrs.param_template = self.param_template
+        self.trial_row                            = self.h5trial_records.row
         self.h5f.flush()
 
-    def load_protocol(self,protocol,params):
-        # Import the task class from its module
-        template_module = import_module('taskontrol.templates.{}'.format(protocol))
+    def load_protocol(self,step_number=-1):
+        # If no step_number passed, load the last step assigned
+        # TODO: dicts are mutable, so last number won't necessarily be last assigned. Fix when multi-step protocols made
+        last_assigned_task   = self.h5data._v_children.keys()[step_number]
+        self.h5trial_records = self.h5data._f_get_child(last_assigned_task)
+        self.trial_row       = self.h5trial_records.row
+        self.task_type       = self.h5trial_records.attrs.task_type
+        self.task_params     = self.h5trial_records.attrs.params
+        self.param_template  = self.h5trial_records.attrs.param_template
+        self.task_data_list  = self.h5trial_records.attrs.data_list
+        # TODO Check if template has changed since assign
+        # Import the task class from its module & make
+        template_module = import_module('taskontrol.templates.{}'.format(self.task_type))
         task_class = getattr(template_module,template_module.TASK)
-
-        # Check if params are a dict of params or a string referring to a premade parameter set
-        if isinstance(params, basestring):
-            template_params = getattr(template_module, params)
-            self.task = task_class(**template_params)
-        elif isinstance(params, dict):
-            self.task = task_class(**params)
-        else:
-            raise TypeError('Not sure what to do with your Params, need dict or string reference to parameter set in template')
+        self.task = task_class(**self.task_params)
 
     def receive_sounds(self,sounds,sound_lookup):
         # To be passed by RPilot after initing the Mouse
+        # We do this here because the Mouse is in charge of its records, and also has access to its task.
+        # TODO some error checking, ie. do we have a task already loaded, etc.
         self.task.sounds = sounds
         self.task.sound_lookup = sound_lookup
         # Update records with lookup table. Append date of lookup if conflicts
-        if set(sound_lookup.items()).issubset(self.h5trial_records.attrs.items()):
-            # Do nothing because we already have the lookup correctly stored
-            pass
-        elif bool(set(sound_lookup.keys()).intersection(self.h5trial_records.attrs.keys())):
-            # If there are some shared keys, but the items are not a subset, then some of the values must differ or else we have new sounds.
-            # Either way, we prepend date as a "proleptic Gregorian" date (day 1 of year 1 is 1, etc.) to avoid conflict.
-            self.h5trial_records.attrs.update(flatten_dict(sound_lookup,parent_key="LU_{}_".format(datetime.date.today().toordinal())))
-        else:
-            # If nothing was in the above intersection check, we don't have any lookup data, so we just write it straight up
-            self.h5trial_records.attrs.update(flatten_dict(sound_lookup,parent_key="LU_"))
-        self.h5f.flush()
+        #if not set(sound_lookup.items()).issubset(set(self.h5trial_records.attrs.params['sounds'])):
+            # TODO: error checking here, need to keep record if param changes, keep record. This is a more general problem so not implementing yet
+            # pass
 
     def save_trial(self,data):
-        # Find the next open row using trial_num (because all tasks should have it)
+        # TODO Error checking: does the data dict contain all the columns of the table?
+        # TODO Error checking: handling basic type mismatches
 
-        try:
-            # We find the first position (double [0][0] because structured array) where trial_num is undefined
-            this_row = np.where(self.h5trial_records['trial_num'].any(axis=1) == False)[0][0]
-        except IndexError:
-            # If there aren't any rows left, we should make our array larger
-            self.h5trial_records.resize(self.h5trial_records.len()+10000,axis=1)
-            this_row = np.where(self.h5trial_records['trial_num'].any(axis=1) == False)[0][0]
-
-        # slice in data dict - index w/ a tuple that's (rownum,field1,field2) and update with (val1,val2)
-        self.h5trial_records.__setitem__(((this_row,) + tuple(data.keys())),tuple(data.values()))
-        self.h5f.flush()
+        for k,v in data.items():
+            self.trial_row[k] = v
+        self.trial_row.append()
+        self.h5trial_records.flush() # FIXME: pytables might do a decent job of flushing when buffer's full - we might gain fluidity by letting it handle flushing.
 
     def put_away(self):
         self.h5f.flush()
         self.h5f.close()
+
+############################################################################################
+# Utility functions and classes
 
 
 def flatten_dict(d, parent_key=''):
@@ -234,4 +244,15 @@ def expand_dict(d):
             items[k] = v
     return items
 
+class Biography(tables.IsDescription):
+    '''
+    pytables descriptor class for biographical information.
+    '''
+    name = tables.StringCol(32)
+    start_date = tables.StringCol(10)
+    baseline_mass = tables.Float32Col()
+    minimum_mass = tables.Float32Col()
+    box = tables.Int32Col()
 
+class DataTest(tables.IsDescription):
+    test = tables.StringCol(32)

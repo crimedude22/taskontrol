@@ -16,8 +16,9 @@ from taskontrol.settings import rpisettings as rpiset
 import datetime
 import itertools
 import warnings
-import h5py
+import tables
 
+# This declaration allows Mouse to identify which class in this file contains the task class. Could also be done with __init__ but yno I didnt for no reason.
 TASK = 'Nafc'
 
 class Nafc:
@@ -28,10 +29,23 @@ class Nafc:
 
     # Class attributes
     # for numpy data types see http://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html#arrays-dtypes-constructing
-    PARAM_LIST = ['sounds', 'reward', 'punish', 'pct_correction', 'bias_mode', 'timeout']
-    DATA_LIST = {'trial_num':'i32','target':'S1','target_sound_id':h5py.special_dtype(vlen=str), 'response':'S1', 'correct':'i8', 'bias':'f', 'RQtimestamp':'S26','DCtimestamp':'S26'}
+    class DataTypes(tables.IsDescription):
+        # This class allows the Mouse object to make a data table with the correct data types. You must update it for any new data you'd like to store
+        trial_num = tables.Int32Col()
+        target = tables.StringCol(1)
+        target_sound_id = tables.StringCol(32) # FIXME need to do ids way smarter than this
+        response = tables.StringCol(1)
+        correct = tables.Int32Col()
+        bias = tables.Float32Col()
+        RQ_timestamp = tables.StringCol(26)
+        DC_timestamp = tables.StringCol(26)
+        bailed = tables.Int32Col()
 
-    def __init__(self, soundict, reward=50, punish=2000, pct_correction=.5, bias_mode=1, timeout=30000, assisted_assign=0):
+    # List of needed params, returned data and data format.
+    PARAM_LIST = ['sounds', 'reward', 'punish', 'pct_correction', 'bias_mode', 'timeout']
+    DATA_LIST = {'trial_num':'i32','target':'S1','target_sound_id':'S32', 'response':'S1', 'correct':'i32', 'bias':'f32', 'RQ_timestamp':'S26','DC_timestamp':'S26','bailed':'i32'}
+
+    def __init__(self, sounds, reward=50, punish=2000, pct_correction=.5, bias_mode=1, timeout=30000, assisted_assign=0, **kwargs):
         # Sounds come in two flavors
         #   soundict: a dict of parameters like:
         #       {'L': 'path/to/file.wav', 'R': 'etc'} or
@@ -57,7 +71,7 @@ class Nafc:
             return
 
         # Fixed parameters
-        self.soundict = soundict
+        self.soundict = sounds # Sounds should always be soundicts on __init__
         self.reward = reward
         self.punish = punish
         self.pct_correction = pct_correction
@@ -80,16 +94,18 @@ class Nafc:
         self.sound_lookup = None
 
         # This allows us to cycle through the task by just repeatedly calling self.stages.next()
-        self.stages = itertools.cycle([self.request,self.discrim,self.reinforcement])
+        stage_list = [self.request,self.discrim,self.reinforcement]
+        self.num_stages = len(stage_list)
+        self.stages = itertools.cycle(enumerate(stage_list)) # Enumerate lets us get the number of the stage we're on.
 
-        # Checking that input
+        # TODO: Probably some error checking around here.
 
 
 
     ##################################################################################
     # Stage Functions
     ##################################################################################
-    def request(self,**kwargs):
+    def request(self,*args,**kwargs):
 
         if not self.sounds:
             raise RuntimeError('\nSound objects have not been passed! Make sure RPilot makes sounds from the soundict before running.')
@@ -132,40 +148,40 @@ class Nafc:
         data = {
             'target':self.target,
             'target_sound_id':self.target_sound_id,
-            'RQtimestamp':datetime.datetime.now().isoformat()
+            'RQ_timestamp':datetime.datetime.now().isoformat()
         }
         triggers = {
-            'C':self.target_sound
+            'C':self.target_sound.out
         }
         timers = {
             'inf':None
         }
         return data,triggers,timers
 
-    def discrim(self,**kwargs):
+    def discrim(self,*args,**kwargs):
 
         # Only data is the timestamp
-        data = {'DCtimestamp': datetime.datetime.now().isoformat()}
+        data = {'DC_timestamp': datetime.datetime.now().isoformat()}
 
         try:
             triggers = {
                 self.target:{'reward':self.reward},
-                self.distractor:{'punish':{'duration':self.punish,'punish_sound':self.sounds['punish'].out}}
+                self.distractor:{'punish':self.punish,'sound':self.sounds['punish'].out}
             }
         except KeyError:
             # If we get a KeyError it's probably because we don't have a punish_sound
             triggers = {
                 self.target:{'reward':self.reward},
-                self.distractor:{'punish':self.punish,'punish_sound':None}
+                self.distractor:{'punish':self.punish}
             }
 
         timers = {
-            'timeout':{'duration':self.timeout,'action':self.reset_stages}
+            'timeout':{'duration':self.timeout,'sound':self.sounds['punish'].out}
         }
 
         return data,triggers,timers
 
-    def reinforcement(self,pin,**kwargs):
+    def reinforcement(self,pin,*args,**kwargs):
         # pin passed from callback function as string version ('L', 'C', etc.)
         self.response = pin
         if self.response == self.target:
@@ -188,13 +204,14 @@ class Nafc:
         data = {
             'response':self.response,
             'correct':self.correct,
-            'bias':self.bias
+            'bias':self.bias,
+            'bailed':0
         }
         triggers = {
             'task_end':None
         }
         timers = {
-            'immediate':None # Immediately calls the next stage because no triggers here.
+            None:None # Next trial is called by RPilot automatically at last stage.
         }
         return data, triggers, timers
         # Also calc ongoing vals. like bias.
@@ -203,7 +220,8 @@ class Nafc:
         """
         Remake stages to reset cycle
         """
-        self.stages = itertools.cycle([self.request, self.discrim, self.reinforcement])
+
+        self.stages = itertools.cycle(enumerate([self.request, self.discrim, self.reinforcement]))
 
     def assisted_assign(self):
         # This should actually be just a way to send the param_list to terminal
@@ -218,6 +236,7 @@ class Nafc:
 # Prebuilt Parameter Sets
 
 FREQ_DISCRIM = {
+    'description':'Pure_Tone_Discrimination',
     'sounds':{
         'L': {'type':'tone','frequency':500, 'duration':500,'amplitude':.1},
         'R': {'type':'tone','frequency':2000,'duration':500,'amplitude':.1}
@@ -229,11 +248,12 @@ FREQ_DISCRIM = {
 }
 
 FREQ_DISCRIM_TEST = {
+    'description':'Pure_Tone_Discrimination',
     'sounds':{
-        'L': [{'type':'tone','frequency':500, 'duration':500,'amplitude':.3},
-             {'type':'tone','frequency':700, 'duration':500,'amplitude':.3}],
-        'R': {'type':'tone','frequency':2000,'duration':500,'amplitude':.3},
-        'punish':{'type':'noise','duration':500,'amplitude':0.3}
+        'L': [{'type':'tone','frequency':500, 'duration':500,'amplitude':.3,'id':'L1'},
+             {'type':'tone','frequency':700, 'duration':500,'amplitude':.3,'id':'L2'}],
+        'R': {'type':'tone','frequency':2000,'duration':500,'amplitude':.3,'id':'R1'},
+        'punish':{'type':'noise','duration':500,'amplitude':0.3,'id':'punish'}
     },
     'reward':[50,60,70],
     'punish':2000,

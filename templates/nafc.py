@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python2.7
 
 '''
 Template handler set for a 2afc paradigm.

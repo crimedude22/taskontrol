@@ -49,6 +49,7 @@ def TableWrap(audio,duration):
     tabread = pyo.TableRead(tab,loop=0)
     return tabread
 
+# Has to be at bottom so fnxns already defined when assigned.
 SWITCH = {
     'tone':Tone,
     'noise':Noise

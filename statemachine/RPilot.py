@@ -40,13 +40,21 @@ class RPilot:
         self.licks_inv = {v: k for k,v in self.licks.items()} #So we can translate pin # to 'L', etc.
         self.data = dict() # Temporary storage of trial data before flushing to h5f
         self.triggers = dict()
-        self.trigger_lock = threading.Event()
-        self.trigger_lock.set() # initially set so everything passes.
         self.timers = dict()
-        self.wait = None
+        self.next_triggers = dict() # Precomputed triggers/times for next stage, kept separate so triggers/timers can be assigned under control of timers/locks/etc.
+        self.next_timers = dict()
         # self.init_pins()
         # self.init_pyo()
         self.protocol_ready = 0
+
+        # Locks, etc. for threading
+        self.threads = dict()
+        self.pin = None # Which pin was triggered? Set by pin_cb()
+        self.is_running = threading.Event()
+        self.stage_lock = threading.Condition()
+        self.trigger_lock = threading.Condition()
+        self.timer_block = threading.Event()
+        self.timer_block.set()
 
 
         # Init TCP/IP connection
@@ -60,7 +68,7 @@ class RPilot:
     def init_pins(self):
         GPIO.setmode(GPIO.BOARD)
         GPIO.setup(self.licks.values(), GPIO.IN, pull_up_down.GPIO.PUD_DOWN)
-        GPIO.add_event_detect(self.licks.values(), GPIO.RISING, callback=self.pin_cb, bouncetime = 500) # Bouncetime is ms unresponsive after trigger
+        GPIO.add_event_detect(self.licks.values(), GPIO.RISING, callback=self.pin_cb, bouncetime = 300) # Bouncetime is ms unresponsive after trigger
         GPIO.setup(self.valves.values(), GPIO.OUT, initial=GPIO.LOW)
 
     def init_pyo(self):
@@ -139,8 +147,9 @@ class RPilot:
     #################################################################
     # Trial Running and Management
     #################################################################
-    def run(self,pin = None):
+    def run_task(self):
         """
+        Make threads for running task, start running task.
         Refresher on the terminology that's been adopted: a "Protocol" is a collection of "Steps", each of which is a "Task" with promotion criteria to the next step.
             Each task is composed of "stages" which are the individual points of decision and response that the RPi and mouse engage in.
         Tasks are run "stagewise," where the run function calls next() on the iterator that contains the stage functions.
@@ -155,9 +164,20 @@ class RPilot:
 
         pin passes the triggered pin (if any) back to the task class
         """
+
+
         if not self.check_ready():
             # TODO Make more verbose as check_ready is populated
             raise Exception("Our check didn't turn out which is weird because it doesn't check anything yet")
+
+        self.is_running.set() # Set is_running threading.Event object, clearing will stop running trials.
+
+        # Keeps shit rolling indefinitely, stops when is_running is clear()-ed.
+        self.threads['stage'] = threading.Thread(target=self.run_stages)
+        # TODO spawn threads for run_triggers and run_timers
+        # TODO have triggers and timers spawn as threads as well waiting for a condition given by pin_cb
+
+
 
         # Calculate the next stage
         self.stage_num,stage_function = self.subject.task.stages.next()
@@ -185,7 +205,7 @@ class RPilot:
         self.triggers = triggers
 
         # Add returned data to trial data dict. If this is the last stage in the trial, save the data.
-        if self.stage_num == self.subject.task.num_stages:
+        if self.stage_num == (self.subject.task.num_stages-1):
             self.data.update(data)
             self.subject.save_trial(self.data)
             self.data = dict() # Clear trial data
@@ -200,6 +220,80 @@ class RPilot:
 
         # We then implicitly wait for run to get called again by pin_cb()
 
+    def stop_running(self):
+        self.is_running.clear()
+        # Stop timers, clear triggers, make sure we release any locks.
+        if not self.stage_lock.is_owned():
+            self.stage_lock.acquire()
+            self.stage_lock.notify()
+            self.stage_lock.release()
+
+
+    def run_stages(self):
+        """
+        Calculate next stage whenever the conditional lock is .notify()-ed and .release()-d by the appropriate thread.
+        :param lock:
+        :return:
+        """
+        while True:
+            self.stage_lock.acquire() # Prevents anyone else from taking control
+
+            # Compute next stage
+            self.stage_num, stage_function = self.subject.task.stages.next()
+            data, triggers, timers = stage_function(self.pin) # self.pin is set by pin_cb() whenever needed
+
+            # Last stage should always be triggerless and only used for end-of-trial calcs.
+            # As such, if we're on it, save data and clear everything for next round
+            if self.stage_num == (self.subject.task.num_stages-1):
+                self.data.update(data)
+                self.subject.save_trial(self.data)
+                self.data = dict()
+                self.triggers = dict() # TODO Make sure these work with whatever thread implementation
+                self.timers = dict() # TODO Definitely will have to stop the timers
+                continue # skips the wait, if there's a hanging timers, still want to calc. next stage, delay handled elsewhere
+            else:
+                self.data.update(data)
+                self.next_triggers = triggers
+                self.next_timers = timers
+
+            # Let run_triggers know we're done with this round's triggers
+            self.trigger_lock.acquire()
+            self.trigger_lock.notify()
+            self.trigger_lock.release()
+
+            # Wait until pin_cb tells us it's time for the next stage
+            self.stage_lock.wait()
+            self.stage_lock.release()
+
+            if not self.is_running.is_set():
+                self.subject.save_trial(self.data)
+                break
+
+    def run_triggers(self):
+        """
+        Handle triggers when run_stages has them, assigns to self.triggers so accessible to pin_cb
+        """
+        while True:
+            # Wait until run_stages activates us
+            self.trigger_lock.acquire()
+            self.trigger_lock.wait()
+
+            # Wait if there is a timer block. If timer_block is .set(), will pass. otherwise will wait.
+            self.timer_block.wait()
+
+            for k, v in self.next_triggers.items():
+                if not callable(v):
+                    self.triggers[k] = self.wrap_triggers(v)
+                else:
+                    self.triggers[k] = v
+
+            self.trigger_lock.release()
+            if not self.is_running.is_set():
+                break
+
+
+
+
     def check_ready(self):
         # Put preflight error checking here as needed.
         # Return True if good to go, for now we'll hardcode it
@@ -207,7 +301,7 @@ class RPilot:
 
     def pin_cb(self,pin):
         # Call the appropriate trigger
-
+        # TODO make sure we are handling the locks after a pin is registered.
         try:
             if not callable(self.triggers[self.licks_inv[pin]]):
                 self.handle_triggers(self.triggers[self.licks_inv[pin]])
@@ -219,75 +313,6 @@ class RPilot:
         except:
             # If the port doesn't have a trigger assigned to it...
             pass
-
-    def handle_triggers(self,trigger):
-        """
-        When the pins can't speak for themselves...
-        :return:
-        """
-        if 'reward' in trigger.keys():
-            # TODO Temporary for laptop testing.
-            print('rewarded {}ms'.format(trigger['reward']))
-        elif 'punish' in trigger.keys():
-            # Play sound if we have one, then lock the 'run' thread until the timer expires.
-            if 'sound' in trigger.keys():
-                trigger['sound']()
-            self.trigger_lock.clear()
-            self.timers['punish'] = threading.Timer((trigger['punish']/1000),self.trigger_lock.set)
-        else:
-            # TODO: error checking, etc.
-            pass
-
-    def handle_timers(self,timerdict):
-        # Handle timers depending on type (key of timerdict)
-        if not isinstance(timerdict,dict):
-            raise TypeError("Timers need to be returned as a dictionary of form {'type':params}")
-        for k,v in timerdict.items():
-            if k == 'too_early':
-                # TODO don't know how to implement this best, come back later
-                pass
-            elif k == 'timeout':
-                if 'sound' in v.keys():
-                    self.timers[k] = threading.Timer((v['duration']/1000),self.bail_trial,args=(v['sound'],))
-                    self.timers[k].start()
-                else:
-                    self.timers[k] = threading.Timer((v['duration']/1000),self.bail_trial)
-            elif k == 'inf':
-                # Just don't do anything.
-                pass
-            elif k == None:
-                pass
-
-            else:
-                # TODO implement timeout
-                raise RuntimeError("Don't know how to handle this type of timer")
-
-
-    def wrap_triggers(self,val):
-        # TODO: Probably not necessary, just use handle_triggers
-        """
-        Some triggers can't be passed as as already-made bound methods. We can handle that without breaking the generality of run()
-        Further, some of those triggers can be wrapped with information RPilot has, but others need arguments and so can't just be returned as blank function handles
-            So, we try to handle them here, and if we can't, return the value and let handle_triggers handle them.
-        Map a trigger to a handling function which can then be called independently.
-        eg. x = wrap_trigger(trigger={'playsound':'yowza!'} - (everybody's favorite sound)
-            y = wrap_trigger(trigger={'playsound':'dy-no-mite!'} - (yuck, who let you in my house?)
-        x() and y() can then be used separately as triggers that the task instance is unable to make itself.
-        """
-        if isinstance(val,dict):
-            if 'reward' in val.keys():
-                # TODO: temporary for troubleshooting on laptop
-                return_function = val
-            elif 'punish' in val.keys():
-                return_function = val
-                pass
-            else:
-                return_function = None
-                # TODO warning and error checking here.
-        else:
-            return_function = None
-
-        return return_function
 
     def bail_trial(self,sound=None):
         # got a timeout, or something that made us reset the trial
